@@ -9,6 +9,7 @@ import { toolsRouter } from './routes/tools';
 import { filesRouter } from './routes/files';
 import { mcpRouter } from './routes/mcp';
 import { chatRouter } from './routes/chat';
+import { terminalRouter } from './routes/terminal';
 import { setupSwagger } from './swagger';
 
 export const createApp = () => {
@@ -42,6 +43,7 @@ export const createApp = () => {
     apiRouter.use('/files', filesRouter);
     apiRouter.use('/mcp', mcpRouter);
     apiRouter.use('/chat', chatRouter);
+    apiRouter.use('/terminal', terminalRouter);
 
     // Error handling
     app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -73,6 +75,5 @@ export function startServer() {
         console.log(`API documentation available at http://localhost:${PORT}/api-docs`);
     });
 
-    // Add app instance to server for testing
     return Object.assign(server, { app });
 }
