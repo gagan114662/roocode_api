@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { Router } from 'express';
+import * as path from 'path';
 import { authenticate } from './middleware/auth';
 import { modesRouter } from './routes/modes';
 import { toolsRouter } from './routes/tools';
@@ -10,15 +11,23 @@ import { filesRouter } from './routes/files';
 import { mcpRouter } from './routes/mcp';
 import { chatRouter } from './routes/chat';
 import { terminalRouter } from './routes/terminal';
+import { visionRouter } from './routes/vision';
 import { setupSwagger } from './swagger';
 
 export const createApp = () => {
     const app = express();
 
     // Security middleware
-    app.use(helmet());
+    app.use(helmet({
+        contentSecurityPolicy: {
+            directives: {
+                ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+                "img-src": ["'self'", "data:"],
+            },
+        },
+    }));
     app.use(cors());
-    app.use(express.json());
+    app.use(express.json({ limit: '50mb' })); // Increased limit for base64 images
 
     // Rate limiting
     const limiter = rateLimit({
@@ -30,7 +39,10 @@ export const createApp = () => {
     // Set up Swagger documentation
     setupSwagger(app);
 
-    // Authentication middleware
+    // Serve static files from public directory
+    app.use(express.static(path.join(__dirname, 'public')));
+
+    // Authentication middleware for API routes
     app.use('/api/v1', authenticate);
 
     // API routes
@@ -44,6 +56,7 @@ export const createApp = () => {
     apiRouter.use('/mcp', mcpRouter);
     apiRouter.use('/chat', chatRouter);
     apiRouter.use('/terminal', terminalRouter);
+    apiRouter.use('/vision', visionRouter);
 
     // Error handling
     app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -73,6 +86,7 @@ export function startServer() {
     const server = app.listen(PORT, () => {
         console.log(`API server running on port ${PORT}`);
         console.log(`API documentation available at http://localhost:${PORT}/api-docs`);
+        console.log(`Vision demo available at http://localhost:${PORT}/vision-demo.html`);
     });
 
     return Object.assign(server, { app });

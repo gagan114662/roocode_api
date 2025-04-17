@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roo Code Vision Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .preview {
+            max-width: 100%;
+            margin-top: 10px;
+        }
+        .result {
+            white-space: pre-wrap;
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Roo Code Vision Demo</h1>
+    <div class="container">
+        <div class="card">
+            <h2>Upload IDE Screenshot</h2>
+            <div class="form-group">
+                <label for="apiKey">API Key:</label>
+                <input type="text" id="apiKey" value="test-key">
+            </div>
+            <div class="form-group">
+                <label for="imageUpload">Select Screenshot:</label>
+                <input type="file" id="imageUpload" accept="image/*">
+            </div>
+            <div class="form-group">
+                <label for="context">Additional Context (optional):</label>
+                <textarea id="context" rows="3" placeholder="Provide any additional context about the error..."></textarea>
+            </div>
+            <button id="analyzeBtn">Analyze Screenshot</button>
+            <div id="imagePreviewContainer" style="display: none;">
+                <h3>Preview:</h3>
+                <img id="imagePreview" class="preview">
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Analysis Result</h2>
+            <div id="analysisResult" class="result">No analysis yet. Upload a screenshot and click "Analyze Screenshot".</div>
+        </div>
+
+        <div class="card">
+            <h2>Resolution</h2>
+            <div id="resolutionResult" class="result">No resolution yet.</div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const imageUpload = document.getElementById('imageUpload');
+            const imagePreview = document.getElementById('imagePreview');
+            const imagePreviewContainer = document.getElementById('imagePreviewContainer');
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            const apiKeyInput = document.getElementById('apiKey');
+            const contextInput = document.getElementById('context');
+            const analysisResult = document.getElementById('analysisResult');
+            const resolutionResult = document.getElementById('resolutionResult');
+
+            // Preview image when selected
+            imageUpload.addEventListener('change', function() {
+                const file = this.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        imagePreview.src = e.target.result;
+                        imagePreviewContainer.style.display = 'block';
+                    }
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            // Analyze image when button clicked
+            analyzeBtn.addEventListener('click', async function() {
+                if (!imageUpload.files[0]) {
+                    alert('Please select an image first');
+                    return;
+                }
+
+                const apiKey = apiKeyInput.value;
+                if (!apiKey) {
+                    alert('Please enter an API key');
+                    return;
+                }
+
+                // Show loading state
+                analyzeBtn.disabled = true;
+                analyzeBtn.textContent = 'Analyzing...';
+                analysisResult.textContent = 'Processing...';
+                resolutionResult.textContent = 'Waiting for analysis...';
+
+                try {
+                    // Convert image to base64
+                    const reader = new FileReader();
+                    reader.readAsDataURL(imageUpload.files[0]);
+                    reader.onload = async function() {
+                        const base64Image = reader.result;
+                        
+                        // Send to API
+                        const response = await fetch('/api/v1/vision/analyze', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-API-Key': apiKey
+                            },
+                            body: JSON.stringify({
+                                image: base64Image,
+                                context: contextInput.value
+                            })
+                        });
+
+                        const result = await response.json();
+                        
+                        if (result.status === 'success') {
+                            analysisResult.textContent = result.data.analysis;
+                            resolutionResult.textContent = result.data.resolution;
+                        } else {
+                            analysisResult.textContent = `Error: ${result.message || 'Unknown error'}`;
+                            resolutionResult.textContent = 'No resolution available due to error.';
+                        }
+                    };
+                } catch (error) {
+                    analysisResult.textContent = `Error: ${error.message}`;
+                    resolutionResult.textContent = 'No resolution available due to error.';
+                } finally {
+                    // Reset button state
+                    analyzeBtn.disabled = false;
+                    analyzeBtn.textContent = 'Analyze Screenshot';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

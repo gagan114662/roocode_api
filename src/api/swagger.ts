@@ -59,6 +59,50 @@ const apiSpec = {
                     timestamp: { type: 'string' },
                 },
             },
+            ChatMessage: {
+                type: 'object',
+                properties: {
+                    message: {
+                        type: 'string',
+                        description: 'Message content',
+                    },
+                    mode: {
+                        type: 'string',
+                        enum: ['ask', 'code', 'architect', 'debug'],
+                        description: 'Chat mode',
+                    },
+                },
+                required: ['message'],
+            },
+            VisionRequest: {
+                type: 'object',
+                properties: {
+                    image: {
+                        type: 'string',
+                        format: 'binary',
+                        description: 'Image file or base64 encoded image',
+                    },
+                    context: {
+                        type: 'string',
+                        description: 'Additional context about the IDE state',
+                    },
+                },
+                required: ['image'],
+            },
+            VisionResponse: {
+                type: 'object',
+                properties: {
+                    analysis: {
+                        type: 'string',
+                        description: 'Analysis of the image',
+                    },
+                    resolution: {
+                        type: 'string',
+                        description: 'Suggested resolution from the AI',
+                    },
+                    timestamp: { type: 'string' },
+                },
+            },
         },
     },
     security: [
@@ -172,6 +216,114 @@ const apiSpec = {
                                             },
                                         },
                                     },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        '/chat/history': {
+            get: {
+                summary: 'Get chat history',
+                tags: ['Chat'],
+                security: [{ ApiKeyAuth: [] }],
+                responses: {
+                    '200': {
+                        description: 'Chat history',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    type: 'object',
+                                    properties: {
+                                        status: { type: 'string', example: 'success' },
+                                        data: {
+                                            type: 'object',
+                                            properties: {
+                                                history: {
+                                                    type: 'array',
+                                                    items: {
+                                                        type: 'object',
+                                                        properties: {
+                                                            role: { type: 'string' },
+                                                            content: { type: 'string' },
+                                                        },
+                                                    },
+                                                },
+                                                mode: { type: 'string' },
+                                                timestamp: { type: 'string' },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        '/chat/clear': {
+            post: {
+                summary: 'Clear chat history',
+                tags: ['Chat'],
+                security: [{ ApiKeyAuth: [] }],
+                responses: {
+                    '200': {
+                        description: 'Chat history cleared',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    type: 'object',
+                                    properties: {
+                                        status: { type: 'string', example: 'success' },
+                                        message: { type: 'string' },
+                                        timestamp: { type: 'string' },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        '/vision/analyze': {
+            post: {
+                summary: 'Analyze IDE screenshot for errors',
+                tags: ['Vision'],
+                security: [{ ApiKeyAuth: [] }],
+                requestBody: {
+                    required: true,
+                    content: {
+                        'application/json': {
+                            schema: {
+                                $ref: '#/components/schemas/VisionRequest',
+                            },
+                        },
+                    },
+                },
+                responses: {
+                    '200': {
+                        description: 'Image analyzed successfully',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    type: 'object',
+                                    properties: {
+                                        status: { type: 'string', example: 'success' },
+                                        data: {
+                                            $ref: '#/components/schemas/VisionResponse',
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    '400': {
+                        description: 'Invalid request',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    $ref: '#/components/schemas/Error',
                                 },
                             },
                         },
