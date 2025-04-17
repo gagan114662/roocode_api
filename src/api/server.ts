@@ -12,6 +12,10 @@ import { mcpRouter } from './routes/mcp';
 import { chatRouter } from './routes/chat';
 import { terminalRouter } from './routes/terminal';
 import { visionRouter } from './routes/vision';
+import { plannerRouter } from './routes/planner';
+import { implementationRouter } from './routes/implementation';
+import { monitorRouter } from './routes/monitor';
+import { workflowRouter } from './routes/workflow';
 import { setupSwagger } from './swagger';
 
 export const createApp = () => {
@@ -57,6 +61,10 @@ export const createApp = () => {
     apiRouter.use('/chat', chatRouter);
     apiRouter.use('/terminal', terminalRouter);
     apiRouter.use('/vision', visionRouter);
+    apiRouter.use('/planner', plannerRouter);
+    apiRouter.use('/implementation', implementationRouter);
+    apiRouter.use('/monitor', monitorRouter);
+    apiRouter.use('/workflow', workflowRouter);
 
     // Error handling
     app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

@@ -103,6 +103,93 @@ const apiSpec = {
                     timestamp: { type: 'string' },
                 },
             },
+            PlannerRequest: {
+                type: 'object',
+                properties: {
+                    requirements: {
+                        type: 'string',
+                        description: 'Project requirements',
+                    },
+                    context: {
+                        type: 'string',
+                        description: 'Additional context',
+                    },
+                    projectType: {
+                        type: 'string',
+                        description: 'Type of project',
+                    },
+                },
+                required: ['requirements'],
+            },
+            ImplementationRequest: {
+                type: 'object',
+                properties: {
+                    planPath: {
+                        type: 'string',
+                        description: 'Path to the plan file',
+                    },
+                    componentName: {
+                        type: 'string',
+                        description: 'Name of the component to implement',
+                    },
+                    context: {
+                        type: 'string',
+                        description: 'Additional context',
+                    },
+                },
+                required: ['planPath', 'componentName'],
+            },
+            TestRequest: {
+                type: 'object',
+                properties: {
+                    filePath: {
+                        type: 'string',
+                        description: 'Path to the file to test',
+                    },
+                    context: {
+                        type: 'string',
+                        description: 'Additional context',
+                    },
+                },
+                required: ['filePath'],
+            },
+            MonitorRequest: {
+                type: 'object',
+                properties: {
+                    directory: {
+                        type: 'string',
+                        description: 'Directory to scan',
+                    },
+                    filePattern: {
+                        type: 'string',
+                        description: 'Glob pattern to match files',
+                    },
+                    scanType: {
+                        type: 'string',
+                        enum: ['errors', 'security', 'performance', 'all'],
+                        description: 'Type of scan to perform',
+                    },
+                },
+                required: ['directory'],
+            },
+            WorkflowRequest: {
+                type: 'object',
+                properties: {
+                    requirements: {
+                        type: 'string',
+                        description: 'Project requirements',
+                    },
+                    projectType: {
+                        type: 'string',
+                        description: 'Type of project (web, mobile, backend, etc.)',
+                    },
+                    projectDir: {
+                        type: 'string',
+                        description: 'Directory to create the project in',
+                    },
+                },
+                required: ['requirements', 'projectType', 'projectDir'],
+            },
         },
     },
     security: [
@@ -324,6 +411,340 @@ const apiSpec = {
                             'application/json': {
                                 schema: {
                                     $ref: '#/components/schemas/Error',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        '/planner/generate': {
+            post: {
+                summary: 'Generate a project plan from requirements',
+                tags: ['Planner'],
+                security: [{ ApiKeyAuth: [] }],
+                requestBody: {
+                    required: true,
+                    content: {
+                        'application/json': {
+                            schema: {
+                                $ref: '#/components/schemas/PlannerRequest',
+                            },
+                        },
+                    },
+                },
+                responses: {
+                    '200': {
+                        description: 'Plan generated successfully',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    type: 'object',
+                                    properties: {
+                                        status: { type: 'string', example: 'success' },
+                                        data: {
+                                            type: 'object',
+                                            properties: {
+                                                plan: { type: 'object' },
+                                                planPath: { type: 'string' },
+                                                timestamp: { type: 'string' },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    '400': {
+                        description: 'Invalid request',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    $ref: '#/components/schemas/Error',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        '/planner/list': {
+            get: {
+                summary: 'List all saved plans',
+                tags: ['Planner'],
+                security: [{ ApiKeyAuth: [] }],
+                responses: {
+                    '200': {
+                        description: 'Plans retrieved successfully',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    type: 'object',
+                                    properties: {
+                                        status: { type: 'string', example: 'success' },
+                                        data: {
+                                            type: 'object',
+                                            properties: {
+                                                plans: {
+                                                    type: 'array',
+                                                    items: {
+                                                        type: 'object',
+                                                        properties: {
+                                                            name: { type: 'string' },
+                                                            path: { type: 'string' },
+                                                            plan: { type: 'object' },
+                                                        },
+                                                    },
+                                                },
+                                                timestamp: { type: 'string' },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        '/implementation/implement': {
+            post: {
+                summary: 'Implement a component from a plan',
+                tags: ['Implementation'],
+                security: [{ ApiKeyAuth: [] }],
+                requestBody: {
+                    required: true,
+                    content: {
+                        'application/json': {
+                            schema: {
+                                $ref: '#/components/schemas/ImplementationRequest',
+                            },
+                        },
+                    },
+                },
+                responses: {
+                    '200': {
+                        description: 'Component implemented successfully',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    type: 'object',
+                                    properties: {
+                                        status: { type: 'string', example: 'success' },
+                                        data: {
+                                            type: 'object',
+                                            properties: {
+                                                component: { type: 'object' },
+                                                implementedFiles: {
+                                                    type: 'array',
+                                                    items: { type: 'string' },
+                                                },
+                                                timestamp: { type: 'string' },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    '400': {
+                        description: 'Invalid request',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    $ref: '#/components/schemas/Error',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        '/implementation/test': {
+            post: {
+                summary: 'Generate tests for a file',
+                tags: ['Implementation'],
+                security: [{ ApiKeyAuth: [] }],
+                requestBody: {
+                    required: true,
+                    content: {
+                        'application/json': {
+                            schema: {
+                                $ref: '#/components/schemas/TestRequest',
+                            },
+                        },
+                    },
+                },
+                responses: {
+                    '200': {
+                        description: 'Tests generated successfully',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    type: 'object',
+                                    properties: {
+                                        status: { type: 'string', example: 'success' },
+                                        data: {
+                                            type: 'object',
+                                            properties: {
+                                                testPath: { type: 'string' },
+                                                testResults: { type: 'object' },
+                                                timestamp: { type: 'string' },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    '400': {
+                        description: 'Invalid request',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    $ref: '#/components/schemas/Error',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        '/monitor/scan': {
+            post: {
+                summary: 'Scan codebase for issues',
+                tags: ['Monitor'],
+                security: [{ ApiKeyAuth: [] }],
+                requestBody: {
+                    required: true,
+                    content: {
+                        'application/json': {
+                            schema: {
+                                $ref: '#/components/schemas/MonitorRequest',
+                            },
+                        },
+                    },
+                },
+                responses: {
+                    '200': {
+                        description: 'Codebase scanned successfully',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    type: 'object',
+                                    properties: {
+                                        status: { type: 'string', example: 'success' },
+                                        data: {
+                                            type: 'object',
+                                            properties: {
+                                                scannedFiles: { type: 'number' },
+                                                processedFiles: { type: 'number' },
+                                                issues: {
+                                                    type: 'array',
+                                                    items: {
+                                                        type: 'object',
+                                                        properties: {
+                                                            file: { type: 'string' },
+                                                            line: { type: 'number' },
+                                                            column: { type: 'number' },
+                                                            severity: { type: 'string' },
+                                                            message: { type: 'string' },
+                                                            code: { type: 'string' },
+                                                            suggestion: { type: 'string' },
+                                                        },
+                                                    },
+                                                },
+                                                fixedIssues: { type: 'array' },
+                                                reportPath: { type: 'string' },
+                                                timestamp: { type: 'string' },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    '400': {
+                        description: 'Invalid request',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    $ref: '#/components/schemas/Error',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        '/workflow/start': {
+            post: {
+                summary: 'Start a new project workflow',
+                tags: ['Workflow'],
+                security: [{ ApiKeyAuth: [] }],
+                requestBody: {
+                    required: true,
+                    content: {
+                        'application/json': {
+                            schema: {
+                                $ref: '#/components/schemas/WorkflowRequest',
+                            },
+                        },
+                    },
+                },
+                responses: {
+                    '200': {
+                        description: 'Workflow started successfully',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    type: 'object',
+                                    properties: {
+                                        status: { type: 'string', example: 'success' },
+                                        data: {
+                                            type: 'object',
+                                            properties: {
+                                                status: { type: 'string' },
+                                                message: { type: 'string' },
+                                                plan: { type: 'object' },
+                                                projectPath: { type: 'string' }
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    '400': {
+                        description: 'Invalid request',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    $ref: '#/components/schemas/Error',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        '/workflow/stop': {
+            post: {
+                summary: 'Stop an active workflow',
+                tags: ['Workflow'],
+                security: [{ ApiKeyAuth: [] }],
+                responses: {
+                    '200': {
+                        description: 'Workflow stopped successfully',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    type: 'object',
+                                    properties: {
+                                        status: { type: 'string', example: 'success' },
+                                        message: { type: 'string' },
+                                        timestamp: { type: 'string' },
+                                    },
                                 },
                             },
                         },
