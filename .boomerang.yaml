@@ -1,0 +1,10 @@
+tasks:
+  - name: "Weekly Dependency Update"
+    schedule: "0 3 * * 1"  # Run at 3 AM every Monday
+    endpoint: "/api/v1/projects/{{projectId}}/update-deps"
+    method: "POST"
+    headers:
+      Content-Type: "application/json"
+    body: {}
+    retries: 3
+    timeout: 300000  # 5 minutes
