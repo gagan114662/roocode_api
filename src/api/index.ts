@@ -6,6 +6,7 @@ import { projectsRouter } from '../routes/projects';
 import { updateDepsRouter } from '../routes/updateDeps';
 import { metricsRouter } from '../routes/metrics';
 import { planRouter } from '../routes/plan';
+import { executePlanRouter } from '../routes/executePlan';
 
 // Create Express app
 const app = express();
@@ -26,6 +27,7 @@ app.use(limiter);
 app.use('/projects', projectsRouter);
 app.use('/projects', updateDepsRouter);
 app.use('/projects', planRouter); // Plan generation and retrieval
+app.use('/projects', executePlanRouter); // Plan execution
 app.use('/', metricsRouter); // Metrics endpoint at /metrics
 
 // Error handling middleware
