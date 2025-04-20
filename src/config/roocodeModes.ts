@@ -4,10 +4,11 @@
 const roocodeModes = {
   DependencyUpdate: {
     model: 'o4-mini',
-    promptTemplate: `
-      You are a Maintenance agent. Given this \`package.json\` output, generate a patch that bumps each dependency to the latest semver‑compatible version:
-      
-      {{packageJson}}
+    promptTemplate: `You are the Dependency Update agent. Given this package.json, output a unified diff that bumps each dependency to the latest semver-compatible version.
+
+\`\`\`json
+{{packageJson}}
+\`\`\`
     `
   },
   Code: {
