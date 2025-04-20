@@ -4,6 +4,13 @@ import IORedis from 'ioredis';
 import { JobData, JobStatus } from '../types/jobs';
 import { createDependencyUpdateService } from './DependencyUpdateService';
 import { ProjectService } from './project.service';
+import { createPlanExecutor } from './planner/PlanExecutor';
+import {
+    jobsEnqueued,
+    jobsCompleted,
+    jobsFailed,
+    jobDuration
+} from './metrics';
 
 interface JobError extends Error {
   jobId?: string;
@@ -71,6 +78,42 @@ export class JobQueueService {
                 data: result,
                 error: result.error
               };
+              
+            case 'execute-plan':
+              await job.updateProgress(10);
+              
+              if (!job.data.projectId || !job.data.options?.planId) {
+                throw new Error('Project ID and Plan ID are required for plan execution');
+              }
+              
+              const planExecutorService = createPlanExecutor(jobQueueService, new ProjectService());
+              
+              try {
+                // Load plan from project
+                const projectService = new ProjectService();
+                const planJson = await projectService.readFile(job.data.projectId, 'plan.json');
+                
+                if (!planJson) {
+                  throw new Error('Plan not found');
+                }
+                
+                const plan = JSON.parse(planJson);
+                
+                // Execute plan
+                await job.updateProgress(20);
+                const result = await planExecutorService.executeTree(plan, job.data.projectId);
+                await job.updateProgress(100);
+                
+                return {
+                  status: 'completed',
+                  data: result
+                };
+              } catch (error) {
+                return {
+                  status: 'failed',
+                  error: error instanceof Error ? error.message : String(error)
+                };
+              }
 
             default:
               throw new Error(`Unknown job type: ${job.name}`);
@@ -85,11 +128,29 @@ export class JobQueueService {
 
     // Set up event handlers
     this.worker.on('completed', (job: Job<JobData, JobResult>) => {
-      console.log(`Job ${job.id} completed successfully`);
+        console.log(`Job ${job.id} completed successfully`);
+        jobsCompleted.inc({ job_type: job.name });
     });
 
     this.worker.on('failed', (job: Job<JobData, JobResult> | undefined, error: JobError) => {
-      console.error(`Job ${job?.id} failed:`, error);
+        console.error(`Job ${job?.id} failed:`, error);
+        if (job) {
+            jobsFailed.inc({ job_type: job.name });
+        }
+    });
+
+    this.worker.on('active', (job: Job<JobData, JobResult>) => {
+        // Start timing the job
+        const startTime = Date.now();
+        job.data._startTime = startTime;
+    });
+
+    this.worker.on('completed', (job: Job<JobData, JobResult>) => {
+        // Record job duration if we have a start time
+        if (job.data._startTime) {
+            const duration = (Date.now() - job.data._startTime) / 1000;
+            jobDuration.observe({ job_type: job.name }, duration);
+        }
     });
 
     this.worker.on('error', (error: Error) => {
@@ -118,19 +179,42 @@ export class JobQueueService {
   }
 
   async addJob(name: string, data: JobData): Promise<string> {
-    await this.ensureConnection();
+      await this.ensureConnection();
 
-    const job = await this.queue.add(name, data, {
-      removeOnComplete: true,
-      removeOnFail: false,
-      attempts: 3,
-      backoff: {
-        type: 'exponential',
-        delay: 1000
+      const startTime = Date.now();
+      try {
+          const job = await this.queue.add(name, data, {
+              removeOnComplete: true,
+              removeOnFail: false,
+              attempts: 3,
+              backoff: {
+                  type: 'exponential',
+                  delay: 1000
+              }
+          });
+
+          // Record metrics
+          jobsEnqueued.inc({ job_type: name });
+          jobDuration.observe({ job_type: name }, (Date.now() - startTime) / 1000);
+
+          return job.id;
+      } catch (error) {
+          // Record failure metric
+          jobsFailed.inc({ job_type: name });
+          throw error;
       }
-    });
+  }
 
-    return job.id;
+  async getJobStatus(jobId: string): Promise<JobStatus> {
+    await this.ensureConnection();
+    
+    const job = await this.queue.getJob(jobId);
+    if (!job) {
+      return 'failed';
+    }
+    
+    const state = await job.getState();
+    return state as JobStatus;
   }
 
   async getJob(jobId: string): Promise<{
