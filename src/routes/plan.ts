@@ -43,12 +43,22 @@ router.post('/:projectId/plan', async (req: PlanRequest, res: Response, next: Ne
         // Commit plan
         await projectService.commit(projectId, 'feat: add project plan structure');
 
-        res.json({
+        res.status(201).json({
             status: 'success',
             data: plan
         });
 
     } catch (error) {
+        if (error instanceof Error) {
+            // Handle known validation errors from PlannerAgent
+            if (error.message.startsWith('Invalid')) {
+                res.status(400).json({
+                    status: 'error',
+                    message: error.message
+                });
+                return;
+            }
+        }
         next(error);
     }
 });
@@ -67,11 +77,18 @@ router.get('/:projectId/plan', async (req: PlanRequest, res: Response, next: Nex
             return;
         }
 
-        const plan = JSON.parse(planJson) as PlanTree;
-        res.json({
-            status: 'success',
-            data: plan
-        });
+        try {
+            const plan = JSON.parse(planJson) as PlanTree;
+            res.json({
+                status: 'success',
+                data: plan
+            });
+        } catch (error) {
+            res.status(500).json({
+                status: 'error',
+                message: 'Failed to parse plan file'
+            });
+        }
 
     } catch (error) {
         next(error);
