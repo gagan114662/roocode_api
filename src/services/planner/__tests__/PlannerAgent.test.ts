@@ -84,7 +84,9 @@ describe('PlannerAgent', () => {
             ]
         } as any);
 
-        await expect(planner.createPlanTree("test")).rejects.toThrow('Invalid plan structure');
+        await expect(planner.createPlanTree("test"))
+            .rejects
+            .toThrow('Invalid plan structure: missing parent or tasks array');
     });
 
     it('should throw error for invalid parent links', async () => {
@@ -101,6 +103,62 @@ describe('PlannerAgent', () => {
             ]
         } as any);
 
-        await expect(planner.createPlanTree("test")).rejects.toThrow('Invalid parentId');
+        await expect(planner.createPlanTree("test"))
+            .rejects
+            .toThrow('Invalid parentId 999 in task "DB Schema"');
+    });
+
+    it('should throw error for empty tasks array', async () => {
+        const emptyTasksResponse = {
+            ...EXAMPLE_RESPONSE,
+            tasks: []
+        };
+
+        mockOpenAI.prototype.chat.completions.create.mockResolvedValue({
+            choices: [
+                {
+                    message: {
+                        content: JSON.stringify(emptyTasksResponse)
+                    }
+                }
+            ]
+        } as any);
+
+        await expect(planner.createPlanTree("test"))
+            .rejects
+            .toThrow('Invalid plan structure: tasks array cannot be empty');
+    });
+
+    it('should throw error for missing task fields', async () => {
+        const missingFieldsResponse = {
+            ...EXAMPLE_RESPONSE,
+            tasks: [
+                { id: 1, parentId: 0, title: "DB Schema" } // Missing description
+            ]
+        };
+
+        mockOpenAI.prototype.chat.completions.create.mockResolvedValue({
+            choices: [
+                {
+                    message: {
+                        content: JSON.stringify(missingFieldsResponse)
+                    }
+                }
+            ]
+        } as any);
+
+        await expect(planner.createPlanTree("test"))
+            .rejects
+            .toThrow('Invalid task structure: missing title or description for task ID 1');
+    });
+
+    it('should use temperature 0 for deterministic output', async () => {
+        await planner.createPlanTree("test");
+
+        expect(mockOpenAI.prototype.chat.completions.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+                temperature: 0
+            })
+        );
     });
 });
