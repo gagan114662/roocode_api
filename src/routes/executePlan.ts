@@ -129,7 +129,7 @@ router.get('/:projectId/execute-plan/:planId/history', async (req: ExecutePlanRe
 // Cancel plan execution
 router.delete('/:projectId/execute-plan/:planId', async (req: ExecutePlanRequest, res: Response, next: NextFunction) => {
   try {
-    const { planId } = req.params;
+    const { projectId, planId } = req.params;
 
     if (!planId) {
       return res.status(400).json({
@@ -139,6 +139,7 @@ router.delete('/:projectId/execute-plan/:planId', async (req: ExecutePlanRequest
       });
     }
 
+    // Mark plan as cancelled in execution history
     const cancelled = planExecutor.cancelExecution(planId);
 
     if (!cancelled) {
@@ -149,10 +150,16 @@ router.delete('/:projectId/execute-plan/:planId', async (req: ExecutePlanRequest
       });
     }
 
+    // Remove any pending jobs for this plan
+    const removedCount = await jobQueueService.removeJobsByFilter({
+      name: 'execute-task',
+      data: { planId }
+    });
+
     return res.status(200).json({
       status: 'success',
       data: {
-        message: 'Plan execution cancelled'
+        message: `Plan execution cancelled. Removed ${removedCount} pending tasks.`
       }
     });
   } catch (error) {

@@ -257,6 +257,42 @@ export class JobQueueService {
       await job.remove();
     }
   }
+  
+  async removeJobsByFilter(filter: { name?: string; data?: Record<string, any> }): Promise<number> {
+    await this.ensureConnection();
+    
+    // Get all jobs
+    const jobs = await this.queue.getJobs(['waiting', 'active']);
+    let removedCount = 0;
+    
+    // Filter and remove matching jobs
+    for (const job of jobs) {
+      let match = true;
+      
+      // Match job name if specified
+      if (filter.name && job.name !== filter.name) {
+        match = false;
+      }
+      
+      // Match job data if specified
+      if (filter.data && match) {
+        for (const [key, value] of Object.entries(filter.data)) {
+          if (!job.data || job.data.options?.[key] !== value) {
+            match = false;
+            break;
+          }
+        }
+      }
+      
+      // Remove job if it matches all criteria
+      if (match) {
+        await job.remove();
+        removedCount++;
+      }
+    }
+    
+    return removedCount;
+  }
 
   async getQueueStatus(): Promise<{
     waiting: number;

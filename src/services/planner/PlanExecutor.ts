@@ -115,6 +115,12 @@ export class PlanExecutor {
    * @param projectId The project ID
    */
   private async executeTaskAndChildren(task: PlanTask, plan: PlanTree, projectId: string): Promise<void> {
+    // Check if plan has been cancelled
+    const history = this.executionHistory.get(plan.planId);
+    if (history?.status === 'cancelled') {
+      return; // Skip execution if plan has been cancelled
+    }
+    
     // Execute the current task
     await this.executeTask(task, plan, projectId);
 
@@ -123,6 +129,11 @@ export class PlanExecutor {
     
     // Execute each child task and its children recursively
     for (const childTask of childTasks) {
+      // Check for cancellation before each child task
+      if (this.executionHistory.get(plan.planId)?.status === 'cancelled') {
+        return; // Skip remaining tasks if plan has been cancelled
+      }
+      
       await this.executeTaskAndChildren(childTask, plan, projectId);
     }
   }
@@ -174,7 +185,9 @@ export class PlanExecutor {
         task.id,
         'success',
         undefined,
-        duration
+        duration,
+        projectId,
+        task.ownerMode
       );
       
       // Commit changes after each task
@@ -194,7 +207,9 @@ export class PlanExecutor {
         task.id,
         'failed',
         error instanceof Error ? error.message : String(error),
-        duration
+        duration,
+        projectId,
+        task.ownerMode
       );
       
       // Optionally, we could implement auto-replanning here
@@ -246,7 +261,9 @@ export class PlanExecutor {
     taskId: number,
     status: 'success' | 'failed' | 'cancelled',
     message?: string,
-    duration?: number
+    duration?: number,
+    projectId?: string,
+    ownerMode?: string
   ): void {
     const history = this.executionHistory.get(planId);
     
@@ -261,19 +278,11 @@ export class PlanExecutor {
       
       // Record metrics
       planTasksExecuted.inc({
-        project_id: history.tasks[0]?.taskId.toString().split('-')[0] || 'unknown',
+        project_id: projectId || 'unknown',
         status
       });
       
-      if (duration) {
-        planTaskDuration.observe(
-          {
-            project_id: history.tasks[0]?.taskId.toString().split('-')[0] || 'unknown',
-            owner_mode: 'unknown' // We don't have the owner mode here, would need to pass it
-          },
-          duration
-        );
-      }
+      // Note: We don't need to observe duration here as it's already done in executeTask
     }
   }
 
@@ -291,6 +300,17 @@ export class PlanExecutor {
         `plan-${planId}-history.json`,
         JSON.stringify(history, null, 2)
       );
+      
+      // Commit the history file
+      await this.projectService.commit(
+        projectId,
+        `chore: save execution history for plan ${planId}`
+      );
+      
+      // Clean up memory if plan is completed or failed
+      if (history.status === 'completed' || history.status === 'failed' || history.status === 'cancelled') {
+        this.executionHistory.delete(planId);
+      }
     }
   }
 
