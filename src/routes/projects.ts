@@ -1,8 +1,8 @@
-import { Router, Response, NextFunction } from 'express';
+import { Router, Response, NextFunction, RequestHandler } from 'express';
 import { ParsedQs } from 'qs';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { ProjectService } from '../services/project.service';
-const { detectMode } = require('../services/intentRouter.js');
+import { detectMode, IntentMode } from '../services/intentRouter';
 
 const router = Router();
 const projectService = new ProjectService();
@@ -28,47 +28,83 @@ router.post('/:projectId/init', async (req: ProjectRequest, res: Response, next:
         await projectService.initializeProject(projectId);
         res.json({
             status: 'success',
-            message: `Project ${projectId} initialized successfully`
+            data: {
+                projectId,
+                message: 'Project initialized successfully'
+            }
         });
     } catch (error) {
         next(error);
     }
 });
 
-// Get list of project files
+// Get project files
 router.get('/:projectId/files', async (req: ProjectRequest, res: Response, next: NextFunction) => {
     try {
         const { projectId } = req.params;
         const files = await projectService.getProjectFiles(projectId);
         res.json({
             status: 'success',
-            data: { files }
+            data: {
+                projectId,
+                files
+            }
         });
     } catch (error) {
         next(error);
     }
 });
 
-// Read file content
+// Get file content
 router.get('/:projectId/files/:filePath(*)', async (req: ProjectRequest, res: Response, next: NextFunction) => {
     try {
         const { projectId, filePath } = req.params;
-        const content = await projectService.readFile(projectId, filePath!);
+        
+        if (!filePath) {
+            res.status(400).json({
+                status: 'error',
+                message: 'File path is required'
+            });
+            return;
+        }
+        
+        const content = await projectService.readFile(projectId, filePath);
+        
+        if (!content) {
+            res.status(404).json({
+                status: 'error',
+                message: 'File not found'
+            });
+            return;
+        }
+        
         res.json({
             status: 'success',
-            data: { content }
+            data: {
+                projectId,
+                filePath,
+                content
+            }
         });
     } catch (error) {
         next(error);
     }
 });
 
-// Write file content
-router.put('/:projectId/files/:filePath(*)', async (req: ProjectRequest, res: Response, next: NextFunction) => {
+// Create or update file
+router.post('/:projectId/files/:filePath(*)', async (req: ProjectRequest, res: Response, next: NextFunction) => {
     try {
         const { projectId, filePath } = req.params;
-        const { content } = req.body || {};
-
+        const { content } = req.body;
+        
+        if (!filePath) {
+            res.status(400).json({
+                status: 'error',
+                message: 'File path is required'
+            });
+            return;
+        }
+        
         if (!content) {
             res.status(400).json({
                 status: 'error',
@@ -76,11 +112,44 @@ router.put('/:projectId/files/:filePath(*)', async (req: ProjectRequest, res: Re
             });
             return;
         }
-
-        await projectService.writeFile(projectId, filePath!, content);
+        
+        await projectService.writeFile(projectId, filePath, content);
+        
         res.json({
             status: 'success',
-            message: `File ${filePath} updated successfully`
+            data: {
+                projectId,
+                filePath,
+                message: 'File created/updated successfully'
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Delete file
+router.delete('/:projectId/files/:filePath(*)', async (req: ProjectRequest, res: Response, next: NextFunction) => {
+    try {
+        const { projectId, filePath } = req.params;
+        
+        if (!filePath) {
+            res.status(400).json({
+                status: 'error',
+                message: 'File path is required'
+            });
+            return;
+        }
+        
+        await projectService.deleteFile(projectId, filePath);
+        
+        res.json({
+            status: 'success',
+            data: {
+                projectId,
+                filePath,
+                message: 'File deleted successfully'
+            }
         });
     } catch (error) {
         next(error);
@@ -91,8 +160,8 @@ router.put('/:projectId/files/:filePath(*)', async (req: ProjectRequest, res: Re
 router.post('/:projectId/commit', async (req: ProjectRequest, res: Response, next: NextFunction) => {
     try {
         const { projectId } = req.params;
-        const { description } = req.body || {};
-
+        const { description } = req.body;
+        
         if (!description) {
             res.status(400).json({
                 status: 'error',
@@ -100,56 +169,158 @@ router.post('/:projectId/commit', async (req: ProjectRequest, res: Response, nex
             });
             return;
         }
-
-        await projectService.commit(projectId, description);
-        res.json({
-            status: 'success',
-            message: `Changes committed successfully: ${description}`
-        });
-    } catch (error) {
-        next(error);
-    }
-});
-
-// Get diff
-router.get('/:projectId/diff', async (req: ProjectRequest, res: Response, next: NextFunction) => {
-    try {
-        const { projectId } = req.params;
-        const { fromCommit } = req.query as { fromCommit?: string };
         
-        const diff = await projectService.diff(projectId, fromCommit);
+        await projectService.commit(projectId, description);
+        
         res.json({
             status: 'success',
-            data: { diff }
+            data: {
+                projectId,
+                message: 'Changes committed successfully'
+            }
         });
     } catch (error) {
         next(error);
     }
 });
 
-// Revert commit
-router.post('/:projectId/revert', async (req: ProjectRequest, res: Response, next: NextFunction) => {
-    try {
-        const { projectId } = req.params;
-        const { commitHash } = req.body || {};
+// Mode handler type definition
+type ModeHandler = (req: ProjectRequest, res: Response, next: NextFunction) => Promise<void>;
 
-        if (!commitHash) {
-            res.status(400).json({
-                status: 'error',
-                message: 'Commit hash is required'
+// Mode handlers for different intents
+const modeHandlers: Record<IntentMode, ModeHandler> = {
+    // Scaffold mode handler
+    scaffold: async (req: ProjectRequest, res: Response, next: NextFunction) => {
+        try {
+            const { projectId } = req.params;
+            const { prompt } = req.body;
+            
+            // TODO: Implement scaffold mode logic
+            
+            res.json({
+                status: 'success',
+                data: {
+                    projectId,
+                    mode: 'scaffold',
+                    message: 'Scaffold mode executed',
+                    prompt
+                }
             });
-            return;
+        } catch (error) {
+            next(error);
         }
-
-        await projectService.revert(projectId, commitHash);
-        res.json({
-            status: 'success',
-            message: `Successfully reverted commit ${commitHash}`
-        });
-    } catch (error) {
-        next(error);
+    },
+    
+    // Refactor mode handler
+    refactor: async (req: ProjectRequest, res: Response, next: NextFunction) => {
+        try {
+            const { projectId } = req.params;
+            const { prompt } = req.body;
+            
+            // TODO: Implement refactor mode logic
+            
+            res.json({
+                status: 'success',
+                data: {
+                    projectId,
+                    mode: 'refactor',
+                    message: 'Refactor mode executed',
+                    prompt
+                }
+            });
+        } catch (error) {
+            next(error);
+        }
+    },
+    
+    // TestGen mode handler
+    testgen: async (req: ProjectRequest, res: Response, next: NextFunction) => {
+        try {
+            const { projectId } = req.params;
+            const { prompt } = req.body;
+            
+            // TODO: Implement testgen mode logic
+            
+            res.json({
+                status: 'success',
+                data: {
+                    projectId,
+                    mode: 'testgen',
+                    message: 'TestGen mode executed',
+                    prompt
+                }
+            });
+        } catch (error) {
+            next(error);
+        }
+    },
+    
+    // CICD mode handler
+    cicd: async (req: ProjectRequest, res: Response, next: NextFunction) => {
+        try {
+            const { projectId } = req.params;
+            const { prompt } = req.body;
+            
+            // TODO: Implement cicd mode logic
+            
+            res.json({
+                status: 'success',
+                data: {
+                    projectId,
+                    mode: 'cicd',
+                    message: 'CICD mode executed',
+                    prompt
+                }
+            });
+        } catch (error) {
+            next(error);
+        }
+    },
+    
+    // DocGen mode handler
+    docgen: async (req: ProjectRequest, res: Response, next: NextFunction) => {
+        try {
+            const { projectId } = req.params;
+            const { prompt } = req.body;
+            
+            // TODO: Implement docgen mode logic
+            
+            res.json({
+                status: 'success',
+                data: {
+                    projectId,
+                    mode: 'docgen',
+                    message: 'DocGen mode executed',
+                    prompt
+                }
+            });
+        } catch (error) {
+            next(error);
+        }
+    },
+    
+    // Code mode handler (default)
+    code: async (req: ProjectRequest, res: Response, next: NextFunction) => {
+        try {
+            const { projectId } = req.params;
+            const { prompt } = req.body;
+            
+            // TODO: Implement code mode logic
+            
+            res.json({
+                status: 'success',
+                data: {
+                    projectId,
+                    mode: 'code',
+                    message: 'Code mode executed',
+                    prompt
+                }
+            });
+        } catch (error) {
+            next(error);
+        }
     }
-});
+};
 
 // Execute project action based on intent
 router.post('/:projectId/execute', async (req: ProjectRequest, res: Response, next: NextFunction) => {
@@ -167,17 +338,20 @@ router.post('/:projectId/execute', async (req: ProjectRequest, res: Response, ne
 
         // Detect intent from prompt
         const mode = detectMode(prompt);
-
-        // TODO: Call appropriate mode handler based on detected intent
-        // For now, just return the detected mode
-        res.json({
-            status: 'success',
-            data: {
-                projectId,
-                mode,
-                message: `Intent detected as ${mode}`
-            }
-        });
+        
+        // Get the appropriate handler for the detected mode
+        const handler = modeHandlers[mode];
+        
+        if (!handler) {
+            res.status(400).json({
+                status: 'error',
+                message: `Unknown mode: ${mode}`
+            });
+            return;
+        }
+        
+        // Execute the handler
+        return handler(req, res, next);
     } catch (error) {
         next(error);
     }

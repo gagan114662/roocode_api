@@ -1,5 +1,5 @@
-const { describe, it, expect } = require('@jest/globals');
-const { detectMode } = require('../intentRouter.js');
+import { describe, it, expect } from '@jest/globals';
+import { detectMode } from '../intentRouter';
 
 describe('intentRouter', () => {
   describe('detectMode', () => {
