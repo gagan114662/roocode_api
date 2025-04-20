@@ -14,30 +14,31 @@ interface ExecutePlanRequest extends AuthenticatedRequest {
   params: {
     projectId: string;
     planId?: string;
+    jobId?: string;
   };
 }
 
-// Execute a plan by ID
+// Execute a plan by ID (async)
 router.post('/:projectId/execute-plan/:planId', async (req: ExecutePlanRequest, res: Response, next: NextFunction) => {
   try {
     const { projectId, planId } = req.params;
 
     if (!planId) {
-      res.status(400).json({
+      return res.status(400).json({
         status: 'error',
+        code: 'MISSING_PLAN_ID',
         message: 'Plan ID is required'
       });
-      return;
     }
 
     // Load plan from project
     const planJson = await projectService.readFile(projectId, 'plan.json');
     if (!planJson) {
-      res.status(404).json({
+      return res.status(404).json({
         status: 'error',
+        code: 'PLAN_NOT_FOUND',
         message: 'No plan found for this project'
       });
-      return;
     }
 
     try {
@@ -45,29 +46,42 @@ router.post('/:projectId/execute-plan/:planId', async (req: ExecutePlanRequest, 
       
       // Verify plan ID matches
       if (plan.planId !== planId) {
-        res.status(400).json({
+        return res.status(400).json({
           status: 'error',
+          code: 'PLAN_ID_MISMATCH',
           message: 'Plan ID mismatch'
         });
-        return;
       }
 
-      // Execute plan
-      const executionHistory = await planExecutor.executeTree(plan, projectId);
+      // Add job to queue
+      const jobId = await jobQueueService.addJob('execute-plan', {
+        projectId,
+        options: {
+          planId
+        }
+      });
 
-      res.json({
-        status: 'success',
-        data: executionHistory
+      // Return 202 Accepted with job ID
+      return res.status(202).json({
+        status: 'accepted',
+        data: {
+          jobId,
+          message: 'Plan execution started',
+          links: {
+            status: `/projects/${projectId}/execute-plan/${planId}/history`,
+            cancel: `/projects/${projectId}/execute-plan/${planId}`
+          }
+        }
       });
     } catch (error) {
       if (error instanceof SyntaxError) {
-        res.status(500).json({
+        return res.status(500).json({
           status: 'error',
+          code: 'INVALID_PLAN_FORMAT',
           message: 'Failed to parse plan file'
         });
-      } else {
-        next(error);
       }
+      next(error);
     }
   } catch (error) {
     next(error);
@@ -80,11 +94,11 @@ router.get('/:projectId/execute-plan/:planId/history', async (req: ExecutePlanRe
     const { projectId, planId } = req.params;
 
     if (!planId) {
-      res.status(400).json({
+      return res.status(400).json({
         status: 'error',
+        code: 'MISSING_PLAN_ID',
         message: 'Plan ID is required'
       });
-      return;
     }
 
     // Try to get history from memory first
@@ -96,16 +110,50 @@ router.get('/:projectId/execute-plan/:planId/history', async (req: ExecutePlanRe
     }
 
     if (!history) {
-      res.status(404).json({
+      return res.status(404).json({
         status: 'error',
+        code: 'HISTORY_NOT_FOUND',
         message: 'No execution history found for this plan'
       });
-      return;
     }
 
-    res.json({
+    return res.json({
       status: 'success',
       data: history
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Cancel plan execution
+router.delete('/:projectId/execute-plan/:planId', async (req: ExecutePlanRequest, res: Response, next: NextFunction) => {
+  try {
+    const { planId } = req.params;
+
+    if (!planId) {
+      return res.status(400).json({
+        status: 'error',
+        code: 'MISSING_PLAN_ID',
+        message: 'Plan ID is required'
+      });
+    }
+
+    const cancelled = planExecutor.cancelExecution(planId);
+
+    if (!cancelled) {
+      return res.status(404).json({
+        status: 'error',
+        code: 'PLAN_NOT_FOUND_OR_COMPLETED',
+        message: 'Plan not found or already completed/failed'
+      });
+    }
+
+    return res.status(200).json({
+      status: 'success',
+      data: {
+        message: 'Plan execution cancelled'
+      }
     });
   } catch (error) {
     next(error);

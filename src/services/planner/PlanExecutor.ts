@@ -2,18 +2,34 @@ import { PlanTree, PlanTask } from '../../types/plan';
 import { JobQueueService } from '../JobQueueService';
 import { ProjectService } from '../project.service';
 import { v4 as uuidv4 } from 'uuid';
+import {
+  planExecutionStarted,
+  planExecutionSucceeded,
+  planExecutionFailed,
+  planExecutionCancelled,
+  planExecutionDuration,
+  planTasksExecuted,
+  planTaskDuration
+} from '../metrics/planMetrics';
 
 interface TaskExecutionResult {
   taskId: number;
-  status: 'success' | 'failed';
+  status: 'success' | 'failed' | 'cancelled';
   message?: string;
   timestamp: Date;
+  duration?: number; // in seconds
 }
 
 interface ExecutionHistory {
   planId: string;
   tasks: TaskExecutionResult[];
+  startTime?: Date;
+  endTime?: Date;
+  status: 'in_progress' | 'completed' | 'failed' | 'cancelled';
 }
+
+// Default timeout for task execution (5 minutes)
+const DEFAULT_TASK_TIMEOUT_MS = 5 * 60 * 1000;
 
 export class PlanExecutor {
   private jobQueue: JobQueueService;
@@ -32,28 +48,64 @@ export class PlanExecutor {
    * @returns The execution history
    */
   async executeTree(plan: PlanTree, projectId: string): Promise<ExecutionHistory> {
+    const startTime = Date.now();
+    
+    // Record metrics
+    planExecutionStarted.inc({ project_id: projectId });
+    
     // Initialize execution history
     const history: ExecutionHistory = {
       planId: plan.planId,
-      tasks: []
+      tasks: [],
+      startTime: new Date(),
+      status: 'in_progress'
     };
     this.executionHistory.set(plan.planId, history);
-
-    // Start with the parent task
-    await this.executeTask(plan.parent, plan, projectId);
-
-    // Find all top-level tasks (tasks with parentId = 0)
-    const topLevelTasks = plan.tasks.filter(task => task.parentId === 0);
     
-    // Execute each top-level task and its children recursively
-    for (const task of topLevelTasks) {
-      await this.executeTaskAndChildren(task, plan, projectId);
+    try {
+      // Start with the parent task
+      await this.executeTask(plan.parent, plan, projectId);
+
+      // Find all top-level tasks (tasks with parentId = 0)
+      const topLevelTasks = plan.tasks.filter(task => task.parentId === 0);
+      
+      // Execute each top-level task and its children recursively
+      for (const task of topLevelTasks) {
+        await this.executeTaskAndChildren(task, plan, projectId);
+      }
+
+      // Update history status
+      history.status = 'completed';
+      history.endTime = new Date();
+      
+      // Record metrics
+      planExecutionSucceeded.inc({ project_id: projectId });
+      planExecutionDuration.observe(
+        { project_id: projectId },
+        (Date.now() - startTime) / 1000
+      );
+      
+      // Save execution history to project
+      await this.saveExecutionHistory(projectId, plan.planId);
+
+      return history;
+    } catch (error) {
+      // Update history status
+      history.status = 'failed';
+      history.endTime = new Date();
+      
+      // Record metrics
+      planExecutionFailed.inc({ project_id: projectId });
+      planExecutionDuration.observe(
+        { project_id: projectId },
+        (Date.now() - startTime) / 1000
+      );
+      
+      // Save execution history to project
+      await this.saveExecutionHistory(projectId, plan.planId);
+      
+      throw error;
     }
-
-    // Save execution history to project
-    await this.saveExecutionHistory(projectId, plan.planId);
-
-    return history;
   }
 
   /**
@@ -87,6 +139,7 @@ export class PlanExecutor {
     projectId: string
   ): Promise<void> {
     console.log(`Executing task ${task.id}: ${task.title} (${task.ownerMode})`);
+    const startTime = Date.now();
     
     try {
       // Add job to queue with the appropriate mode
@@ -103,23 +156,45 @@ export class PlanExecutor {
       // Wait for job to complete
       const result = await this.waitForJobCompletion(jobId);
       
+      // Calculate duration
+      const duration = (Date.now() - startTime) / 1000;
+      
+      // Record metrics
+      planTaskDuration.observe(
+        {
+          project_id: projectId,
+          owner_mode: task.ownerMode
+        },
+        duration
+      );
+      
       // Record result in execution history
-      this.recordTaskExecution(plan.planId, task.id, 'success');
+      this.recordTaskExecution(
+        plan.planId,
+        task.id,
+        'success',
+        undefined,
+        duration
+      );
       
       // Commit changes after each task
       await this.projectService.commit(
-        projectId, 
+        projectId,
         `task(${task.id}): ${task.title}`
       );
     } catch (error) {
       console.error(`Failed to execute task ${task.id}:`, error);
       
+      // Calculate duration
+      const duration = (Date.now() - startTime) / 1000;
+      
       // Record failure in execution history
       this.recordTaskExecution(
-        plan.planId, 
-        task.id, 
-        'failed', 
-        error instanceof Error ? error.message : String(error)
+        plan.planId,
+        task.id,
+        'failed',
+        error instanceof Error ? error.message : String(error),
+        duration
       );
       
       // Optionally, we could implement auto-replanning here
@@ -134,11 +209,17 @@ export class PlanExecutor {
    * @param jobId The job ID to wait for
    * @returns The job result
    */
-  private async waitForJobCompletion(jobId: string): Promise<any> {
+  private async waitForJobCompletion(jobId: string, timeoutMs: number = DEFAULT_TASK_TIMEOUT_MS): Promise<any> {
     // Poll job status until complete or failed
     let status = await this.jobQueue.getJobStatus(jobId);
+    const startTime = Date.now();
     
     while (status === 'waiting' || status === 'active') {
+      // Check for timeout
+      if (Date.now() - startTime > timeoutMs) {
+        throw new Error(`Task execution timed out after ${timeoutMs / 1000} seconds`);
+      }
+      
       // Wait before polling again
       await new Promise(resolve => setTimeout(resolve, 1000));
       status = await this.jobQueue.getJobStatus(jobId);
@@ -163,8 +244,9 @@ export class PlanExecutor {
   private recordTaskExecution(
     planId: string,
     taskId: number,
-    status: 'success' | 'failed',
-    message?: string
+    status: 'success' | 'failed' | 'cancelled',
+    message?: string,
+    duration?: number
   ): void {
     const history = this.executionHistory.get(planId);
     
@@ -173,8 +255,25 @@ export class PlanExecutor {
         taskId,
         status,
         message,
-        timestamp: new Date()
+        timestamp: new Date(),
+        duration
       });
+      
+      // Record metrics
+      planTasksExecuted.inc({
+        project_id: history.tasks[0]?.taskId.toString().split('-')[0] || 'unknown',
+        status
+      });
+      
+      if (duration) {
+        planTaskDuration.observe(
+          {
+            project_id: history.tasks[0]?.taskId.toString().split('-')[0] || 'unknown',
+            owner_mode: 'unknown' // We don't have the owner mode here, would need to pass it
+          },
+          duration
+        );
+      }
     }
   }
 
@@ -202,6 +301,30 @@ export class PlanExecutor {
    */
   getExecutionHistory(planId: string): ExecutionHistory | null {
     return this.executionHistory.get(planId) || null;
+  }
+
+  /**
+   * Cancel a plan execution
+   * @param planId The plan ID to cancel
+   * @returns true if the plan was cancelled, false if it wasn't found or already completed
+   */
+  cancelExecution(planId: string): boolean {
+    const history = this.executionHistory.get(planId);
+    
+    if (!history || history.status === 'completed' || history.status === 'failed') {
+      return false;
+    }
+    
+    // Update history status
+    history.status = 'cancelled';
+    history.endTime = new Date();
+    
+    // Record metrics
+    planExecutionCancelled.inc({
+      project_id: history.tasks[0]?.taskId.toString().split('-')[0] || 'unknown'
+    });
+    
+    return true;
   }
 
   /**
