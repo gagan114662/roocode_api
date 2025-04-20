@@ -1,47 +1,83 @@
-import { Router } from "express";
-import { ModelRouterService } from "../services/models/ModelRouterService";
-import { openai } from "../providers/openaiProvider";
+import { Router } from 'express';
+import { ModelRouterService } from '../services/models/ModelRouterService';
+import { openai } from '../providers/openaiProvider';
+import { OllamaModel } from '../config/ollamaModels';
 
 const router = Router();
-const routerSvc = new ModelRouterService(openai);
 
-router.post("/route", async (req, res, next) => {
+// Load configuration from environment
+const routerConfig = {
+  costThreshold: Number(process.env.COST_THRESHOLD || '0.001'),
+  defaultLocalModel: (process.env.DEFAULT_LOCAL_MODEL || 'llama3:latest') as OllamaModel,
+  modeLocalModelMap: process.env.MODE_LOCAL_MODEL_MAP ? 
+    JSON.parse(process.env.MODE_LOCAL_MODEL_MAP) : undefined
+};
+
+const routerSvc = new ModelRouterService(openai, routerConfig);
+
+router.post('/route', async (req, res, next) => {
   try {
     const { prompt, ownerMode } = req.body;
 
     if (!prompt || !ownerMode) {
       return res.status(400).json({
-        error: "Missing required fields: prompt and ownerMode are required"
+        error: 'Missing required fields: prompt and ownerMode are required'
       });
     }
 
+    const startTime = Date.now();
     const reply = await routerSvc.route(prompt, ownerMode);
+    const duration = Date.now() - startTime;
     
     res.json({
       reply,
-      model: routerSvc.getModelForMode(ownerMode),
-      ownerMode,
-      promptLength: prompt.length
+      metadata: {
+        selectedModel: routerSvc.getModelForMode(ownerMode),
+        localModel: routerSvc.getLocalModel(ownerMode),
+        ownerMode,
+        promptLength: prompt.length,
+        responseTimeMs: duration
+      }
     });
   } catch (err) {
     next(err);
   }
 });
 
-router.get("/models", (req, res) => {
-  const routerSvc = new ModelRouterService(openai);
-  const modes = ["code", "debug", "testgen", "cicd", "refactor", "docgen"];
-  
-  const modelMappings = modes.reduce((acc, mode) => {
-    acc[mode] = routerSvc.getModelForMode(mode);
-    return acc;
-  }, {} as Record<string, string>);
-
+router.get('/models', (_req, res) => {
   res.json({
-    modelMappings,
-    costThreshold: process.env.COST_THRESHOLD || "0.001",
-    localModel: process.env.OLLAMA_MODEL || "llama2"
+    // Available models and their capabilities
+    localModels: routerSvc.getAvailableLocalModels(),
+    modelCapabilities: routerSvc.getModelCapabilities(),
+    
+    // Current configuration
+    config: {
+      costThreshold: routerConfig.costThreshold,
+      defaultLocalModel: routerConfig.defaultLocalModel,
+      modeLocalModelMap: routerConfig.modeLocalModelMap
+    }
   });
+});
+
+router.get('/health', async (_req, res) => {
+  try {
+    // Test local model connection
+    await fetch('http://localhost:11434/api/health');
+    
+    res.json({
+      status: 'healthy',
+      localModelAvailable: true,
+      openAIAvailable: true,
+      configuration: routerConfig
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: 'degraded',
+      localModelAvailable: false,
+      openAIAvailable: true,
+      error: (err as Error).message
+    });
+  }
 });
 
 export default router;
