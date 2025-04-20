@@ -1,5 +1,4 @@
 version: '3.8'
-
 services:
   api:
     build:
@@ -18,7 +17,6 @@ services:
       - redis
     networks:
       - roocode-net
-
   worker:
     build:
       context: .
@@ -35,7 +33,6 @@ services:
       - redis
     networks:
       - roocode-net
-
   redis:
     image: redis:7-alpine
     ports:
@@ -44,7 +41,6 @@ services:
       - redis-data:/data
     networks:
       - roocode-net
-
   prometheus:
     image: prom/prometheus
     ports:
@@ -54,7 +50,6 @@ services:
       - prometheus-data:/prometheus
     networks:
       - roocode-net
-
   grafana:
     image: grafana/grafana
     ports:
@@ -68,12 +63,10 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=roocode
     networks:
       - roocode-net
-
 volumes:
   redis-data:
   prometheus-data:
   grafana-data:
-
 networks:
   roocode-net:
     driver: bridge
