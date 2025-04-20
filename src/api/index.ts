@@ -1,78 +1,45 @@
-export { startServer } from './server';
-export { authenticate, authorize } from './middleware/auth';
-export { modesRouter } from './routes/modes';
-export { toolsRouter } from './routes/tools';
-export { filesRouter } from './routes/files';
-export { mcpRouter } from './routes/mcp';
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import { projectsRouter } from '../routes/projects';
+import { updateDepsRouter } from '../routes/updateDeps';
+import { metricsRouter } from '../routes/metrics';
+import { planRouter } from '../routes/plan';
 
-// API Types
-export interface APIResponse<T = any> {
-    status: 'success' | 'error';
-    data?: T;
-    message?: string;
-    error?: string;
-}
+// Create Express app
+const app = express();
 
-export interface APIError {
-    status: 'error';
-    message: string;
-    error?: string;
-}
+// Apply middleware
+app.use(helmet());
+app.use(cors());
+app.use(express.json());
 
-// Mode Types
-export interface Mode {
-    slug: string;
-    name: string;
-    description?: string;
-    capabilities: string[];
-}
+// Rate limiting
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100 // limit each IP to 100 requests per windowMs
+});
+app.use(limiter);
 
-// File Operation Types
-export interface FileOperation {
-    path: string;
-    content?: string;
-    lineCount?: number;
-    startLine?: number;
-    endLine?: number;
-    regex?: string;
-    filePattern?: string;
-}
+// Mount routers
+app.use('/projects', projectsRouter);
+app.use('/projects', updateDepsRouter);
+app.use('/projects', planRouter); // Plan generation and retrieval
+app.use('/', metricsRouter); // Metrics endpoint at /metrics
 
-// Tool Types
-export interface ToolDefinition {
-    name: string;
-    description: string;
-    parameters: string[];
-}
+// Error handling middleware
+app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error(err.stack);
+    res.status(500).json({
+        status: 'error',
+        message: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message
+    });
+});
 
-// MCP Types
-export interface MCPServer {
-    name: string;
-    status: 'connected' | 'disconnected';
-    tools: string[];
-    resources: string[];
-}
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok' });
+});
 
-export interface MCPToolExecution {
-    serverName: string;
-    toolName: string;
-    arguments: Record<string, unknown>;
-}
-
-export interface MCPResourceAccess {
-    serverName: string;
-    uri: string;
-}
-
-// Authentication Types
-export interface AuthUser {
-    id: string;
-    permissions: string[];
-}
-
-export interface AuthenticatedRequest extends Express.Request {
-    user?: AuthUser;
-}
-
-// Re-export swagger setup
-export { setupSwagger } from './swagger';
+export default app;
