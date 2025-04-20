@@ -1,0 +1,2 @@
+# Run auto-scaling check every minute
+* * * * * /app/scripts/auto-scale.sh
