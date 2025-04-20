@@ -1,5 +1,17 @@
 import { OpenAI } from 'openai';
 import { CostForecastService } from '../cost/CostForecastService';
+import { 
+  OllamaModel, 
+  localModels, 
+  isValidOllamaModel, 
+  defaultModeModelMap 
+} from '../../config/ollamaModels';
+
+export interface ModelRouterConfig {
+  costThreshold: number;
+  defaultLocalModel: OllamaModel;
+  modeLocalModelMap?: Record<string, OllamaModel>;
+}
 
 interface OllamaResponse {
   choices: Array<{
@@ -10,50 +22,73 @@ interface OllamaResponse {
 }
 
 export class ModelRouterService {
-  private openai: OpenAI;
   private costService = new CostForecastService();
-  private costThreshold = Number(process.env.COST_THRESHOLD || '0.001');
-  private localModel = process.env.OLLAMA_MODEL || 'llama2';
+  private defaultConfig: ModelRouterConfig = {
+    costThreshold: Number(process.env.COST_THRESHOLD || '0.001'),
+    defaultLocalModel: (process.env.DEFAULT_LOCAL_MODEL || 'llama3:latest') as OllamaModel,
+    modeLocalModelMap: defaultModeModelMap
+  };
 
-  constructor(openai: OpenAI) {
-    this.openai = openai;
+  constructor(
+    private openai: OpenAI,
+    private config: Partial<ModelRouterConfig> = {}
+  ) {
+    this.config = { ...this.defaultConfig, ...config };
+    
+    // Validate configuration
+    if (!isValidOllamaModel(this.config.defaultLocalModel)) {
+      throw new Error(`Invalid default local model: ${this.config.defaultLocalModel}`);
+    }
+
+    Object.entries(this.config.modeLocalModelMap || {}).forEach(([mode, model]) => {
+      if (!isValidOllamaModel(model)) {
+        throw new Error(`Invalid local model for mode ${mode}: ${model}`);
+      }
+    });
+  }
+
+  getLocalModel(ownerMode: string): OllamaModel {
+    const mode = ownerMode.toLowerCase();
+    return (
+      this.config.modeLocalModelMap?.[mode] ||
+      this.config.defaultLocalModel
+    );
   }
 
   async route(prompt: string, ownerMode: string): Promise<string> {
-    const model = this.getModelForMode(ownerMode);
-    const cost = this.costService.estimatePromptCost(prompt, model);
+    const openAIModel = this.getModelForMode(ownerMode);
+    const cost = this.costService.estimatePromptCost(prompt, openAIModel);
 
-    if (cost <= this.costThreshold) {
-      // Use local Ollama
-      return await this.routeToLocal(prompt);
+    if (cost <= this.config.costThreshold) {
+      try {
+        return await this.routeToLocal(prompt, ownerMode);
+      } catch (error) {
+        console.warn('Local model failed, falling back to OpenAI:', error);
+        return await this.routeToOpenAI(prompt, openAIModel);
+      }
     } else {
-      // Fallback to OpenAI
-      return await this.routeToOpenAI(prompt, model);
+      return await this.routeToOpenAI(prompt, openAIModel);
     }
   }
 
-  private async routeToLocal(prompt: string): Promise<string> {
-    try {
-      // Mock Ollama call for now
-      const response = await fetch('http://localhost:11434/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: this.localModel,
-          messages: [{ role: 'user', content: prompt }]
-        })
-      });
+  private async routeToLocal(prompt: string, ownerMode: string): Promise<string> {
+    const localModel = this.getLocalModel(ownerMode);
+    
+    const response = await fetch('http://localhost:11434/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: localModel,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
 
-      if (!response.ok) {
-        throw new Error('Local model call failed');
-      }
-
-      const result: OllamaResponse = await response.json();
-      return result.choices[0].message.content;
-    } catch (error) {
-      console.warn('Local model failed, falling back to OpenAI:', error);
-      return this.routeToOpenAI(prompt, 'gpt-3.5-turbo');
+    if (!response.ok) {
+      throw new Error(`Local model call failed: ${response.statusText}`);
     }
+
+    const result: OllamaResponse = await response.json();
+    return result.choices[0].message.content;
   }
 
   private async routeToOpenAI(prompt: string, model: string): Promise<string> {
@@ -76,6 +111,14 @@ export class ModelRouterService {
       docgen: 'gpt-3.5-turbo'
     };
     return map[ownerMode.toLowerCase()] || 'gpt-4-turbo';
+  }
+
+  getAvailableLocalModels(): OllamaModel[] {
+    return [...localModels];
+  }
+
+  getModelCapabilities(): Record<string, string[]> {
+    return this.config.modeLocalModelMap || defaultModeModelMap;
   }
 }
 
