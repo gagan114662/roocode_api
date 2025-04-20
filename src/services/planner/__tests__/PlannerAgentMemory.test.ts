@@ -71,7 +71,6 @@ describe('PlannerAgent Memory Integration', () => {
       const step = { id: 1, title: 'Failed Step' };
       const error = new Error('Test error');
 
-      // Mock implementation to throw
       jest.spyOn(planner as any, 'executeStep')
         .mockRejectedValue(error);
 
