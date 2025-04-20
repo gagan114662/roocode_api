@@ -6,10 +6,10 @@ import { GlobalFileNames } from "../shared/globalFileNames"
 import { migrateSettings } from "../utils/migrateSettings"
 
 // Mock dependencies
-jest.mock("vscode")
-jest.mock("fs/promises")
-jest.mock("fs")
-jest.mock("../utils/fs")
+// jest.mock("vscode")
+// jest.mock("fs/promises")
+// jest.mock("fs")
+// jest.mock("../utils/fs")
 // We're testing the real migrateSettings function
 
 describe("Settings Migration", () => {
@@ -55,7 +55,7 @@ describe("Settings Migration", () => {
 		const mockCustomModesContent = '{"customModes":[{"slug":"test-mode"}]}' as string
 
 		// Mock file existence checks
-		;(fileExistsAtPath as jest.Mock).mockImplementation(async (path: string) => {
+		;(fileExistsAtPath // as jest.Mock).mockImplementation(async (path: string) => {
 			if (path === mockSettingsDir) return true
 			if (path === legacyCustomModesPath) return true
 			if (path === newCustomModesPath) return false
@@ -72,7 +72,7 @@ describe("Settings Migration", () => {
 		const mockMcpSettingsContent = '{"mcpServers":{"test-server":{}}}' as string
 
 		// Mock file existence checks
-		;(fileExistsAtPath as jest.Mock).mockImplementation(async (path: string) => {
+		;(fileExistsAtPath // as jest.Mock).mockImplementation(async (path: string) => {
 			if (path === mockSettingsDir) return true
 			if (path === legacyMcpSettingsPath) return true
 			if (path === newMcpSettingsPath) return false
@@ -87,7 +87,7 @@ describe("Settings Migration", () => {
 
 	it("should not migrate if new file already exists", async () => {
 		// Mock file existence checks
-		;(fileExistsAtPath as jest.Mock).mockImplementation(async (path: string) => {
+		;(fileExistsAtPath // as jest.Mock).mockImplementation(async (path: string) => {
 			if (path === mockSettingsDir) return true
 			if (path === legacyCustomModesPath) return true
 			if (path === newCustomModesPath) return true
@@ -104,7 +104,7 @@ describe("Settings Migration", () => {
 
 	it("should handle errors gracefully", async () => {
 		// Mock file existence checks to throw an error
-		;(fileExistsAtPath as jest.Mock).mockRejectedValue(new Error("Test error"))
+		;(fileExistsAtPath // as jest.Mock).mockRejectedValue(new Error("Test error"))
 
 		// Set the global outputChannel for the test
 		;(global as any).outputChannel = mockOutputChannel

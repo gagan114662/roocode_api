@@ -3,27 +3,10 @@
 
 type ProviderSettings = {
 	apiProvider?:
-		| (
-				| "anthropic"
-				| "glama"
-				| "openrouter"
-				| "bedrock"
-				| "vertex"
-				| "openai"
-				| "ollama"
-				| "vscode-lm"
-				| "lmstudio"
-				| "gemini"
-				| "openai-native"
-				| "mistral"
-				| "deepseek"
-				| "unbound"
-				| "requesty"
-				| "human-relay"
-				| "fake-ai"
-				| "xai"
-		  )
-		| undefined
+			| "anthropic"
+			| "openai"
+			| "ollama"
+			| undefined
 	apiModelId?: string | undefined
 	apiKey?: string | undefined
 	anthropicBaseUrl?: string | undefined

@@ -103,6 +103,57 @@ const apiSpec = {
                     timestamp: { type: 'string' },
                 },
             },
+            Plan: {
+                type: 'object',
+                properties: {
+                    description: { type: 'string' },
+                    tasks: {
+                        type: 'array',
+                        items: {
+                            type: 'object',
+                            properties: {
+                                id: { type: 'string' },
+                                title: { type: 'string' },
+                                description: { type: 'string' },
+                                ownerMode: { type: 'string', enum: ['PM', 'Architect', 'Code', 'Debug'] }
+                            }
+                        }
+                    }
+                }
+            },
+            PlanResponse: {
+                type: 'object',
+                properties: {
+                    status: { type: 'string', example: 'success' },
+                    data: {
+                        type: 'object',
+                        properties: {
+                            plan: { $ref: '#/components/schemas/Plan' }
+                        }
+                    }
+                }
+            },
+            ExecutionResult: {
+                type: 'object',
+                properties: {
+                    status: { type: 'string', example: 'success' },
+                    data: {
+                        type: 'object',
+                        properties: {
+                            results: {
+                                type: 'array',
+                                items: {
+                                    type: 'object',
+                                    properties: {
+                                        taskId: { type: 'string' },
+                                        output: { type: 'string' }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         },
     },
     security: [
@@ -331,6 +382,93 @@ const apiSpec = {
                 },
             },
         },
+        '/planning/create': {
+            post: {
+                summary: 'Create a project plan',
+                tags: ['Planning'],
+                security: [{ ApiKeyAuth: [] }],
+                requestBody: {
+                    required: true,
+                    content: {
+                        'application/json': {
+                            schema: {
+                                type: 'object',
+                                properties: {
+                                    description: { type: 'string' },
+                                    projectId: { type: 'string' }
+                                },
+                                required: ['description', 'projectId']
+                            }
+                        }
+                    }
+                },
+                responses: {
+                    '200': {
+                        description: 'Plan created successfully',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    $ref: '#/components/schemas/PlanResponse'
+                                }
+                            }
+                        }
+                    },
+                    '400': {
+                        description: 'Invalid request',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    $ref: '#/components/schemas/Error'
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        '/planning/execute': {
+            post: {
+                summary: 'Execute a project plan',
+                tags: ['Planning'],
+                security: [{ ApiKeyAuth: [] }],
+                requestBody: {
+                    required: true,
+                    content: {
+                        'application/json': {
+                            schema: {
+                                type: 'object',
+                                properties: {
+                                    projectId: { type: 'string' }
+                                },
+                                required: ['projectId']
+                            }
+                        }
+                    }
+                },
+                responses: {
+                    '200': {
+                        description: 'Plan executed successfully',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    $ref: '#/components/schemas/ExecutionResult'
+                                }
+                            }
+                        }
+                    },
+                    '400': {
+                        description: 'Invalid request',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    $ref: '#/components/schemas/Error'
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     },
 };
 

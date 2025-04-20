@@ -3,5 +3,11 @@
 	"private": true,
 	"publishConfig": {
 		"access": "public"
-	}
+	},
+	"main": "base.json",
+	"files": [
+		"base.json",
+		"cjs.json",
+		"nextjs.json"
+	]
 }

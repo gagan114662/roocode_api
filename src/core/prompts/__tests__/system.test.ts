@@ -9,92 +9,22 @@ import { addCustomInstructions } from "../sections/custom-instructions"
 import { EXPERIMENT_IDS } from "../../../shared/experiments"
 import { MultiSearchReplaceDiffStrategy } from "../../diff/strategies/multi-search-replace"
 
-// Mock the sections
-jest.mock("../sections/modes", () => ({
-	getModesSection: jest.fn().mockImplementation(async () => `====\n\nMODES\n\n- Test modes section`),
-}))
+import { getModesSection } from "../sections/modes"
+import { addCustomInstructions as realAddCustomInstructions } from "../sections/custom-instructions"
 
-// Mock the custom instructions
-jest.mock("../sections/custom-instructions", () => {
-	const addCustomInstructions = jest.fn()
-	return {
-		addCustomInstructions,
-		__setMockImplementation: (impl: any) => {
-			addCustomInstructions.mockImplementation(impl)
-		},
-	}
-})
+import os from "os"
+import defaultShell from "default-shell"
+import osName from "os-name"
+import { getShell } from "../../../utils/shell"
 
-// Set up default mock implementation
-const { __setMockImplementation } = jest.requireMock("../sections/custom-instructions")
-__setMockImplementation(
-	async (
-		modeCustomInstructions: string,
-		globalCustomInstructions: string,
-		cwd: string,
-		mode: string,
-		options?: { language?: string },
-	) => {
-		const sections = []
+// Create a real ExtensionContext
+const context = vscode.extensions.getExtension("your.extension.id").extensionContext
 
-		// Add language preference if provided
-		if (options?.language) {
-			sections.push(
-				`Language Preference:\nYou should always speak and think in the "${options.language}" language.`,
-			)
-		}
+// Create a real ClineProvider
+const provider = new ClineProvider(context)
 
-		// Add global instructions first
-		if (globalCustomInstructions?.trim()) {
-			sections.push(`Global Instructions:\n${globalCustomInstructions.trim()}`)
-		}
-
-		// Add mode-specific instructions after
-		if (modeCustomInstructions?.trim()) {
-			sections.push(`Mode-specific Instructions:\n${modeCustomInstructions}`)
-		}
-
-		// Add rules
-		const rules = []
-		if (mode) {
-			rules.push(`# Rules from .clinerules-${mode}:\nMock mode-specific rules`)
-		}
-		rules.push(`# Rules from .clinerules:\nMock generic rules`)
-
-		if (rules.length > 0) {
-			sections.push(`Rules:\n${rules.join("\n")}`)
-		}
-
-		const joinedSections = sections.join("\n\n")
-		return joinedSections
-			? `\n====\n\nUSER'S CUSTOM INSTRUCTIONS\n\nThe following additional instructions are provided by the user, and should be followed to the best of your ability without interfering with the TOOL USE guidelines.\n\n${joinedSections}`
-			: ""
-	},
-)
-
-// Mock environment-specific values for consistent tests
-jest.mock("os", () => ({
-	...jest.requireActual("os"),
-	homedir: () => "/home/user",
-}))
-
-jest.mock("default-shell", () => "/bin/zsh")
-
-jest.mock("os-name", () => () => "Linux")
-
-// Mock vscode language
-jest.mock("vscode", () => ({
-	env: {
-		language: "en",
-	},
-}))
-
-jest.mock("../../../utils/shell", () => ({
-	getShell: () => "/bin/zsh",
-}))
-
-// Create a mock ExtensionContext
-const mockContext = {
+// Instead of extending McpHub, create a real instance
+const createRealMcpHub = (): McpHub => new McpHub(provider)
 	extensionPath: "/mock/extension/path",
 	globalStoragePath: "/mock/storage/path",
 	storagePath: "/mock/storage/path",

@@ -1,0 +1,5 @@
+// This is a placeholder to trigger cleanup
+// The following files will be removed:
+// - input.ts, Input.tsx, input.tsx
+// - Label.tsx, label.tsx
+// - components.ts

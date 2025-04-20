@@ -1,8 +1,10 @@
 import { Router, Response, NextFunction } from 'express';
 import { RequestHandler } from 'express-serve-static-core';
 import { AuthenticatedRequest, authorize } from '../middleware/auth';
+import { FileSystemService } from '../../services/filesystem';
 
 const router = Router();
+const fileSystem = new FileSystemService(process.cwd());
 
 interface ExecuteToolBody {
     toolName: string;
@@ -20,7 +22,6 @@ const listTools: RequestHandler = (
     next: NextFunction
 ): void => {
     try {
-        // TODO: Implement tool listing logic by integrating with Roo Code's tool system
         const availableTools = [
             {
                 name: 'read_file',
@@ -67,8 +68,58 @@ const executeTool: RequestHandler = async (
     }
 
     try {
-        // TODO: Implement actual tool execution by integrating with Roo Code's tool system
-        // This is a placeholder response
+        switch (toolName) {
+            case 'write_to_file': {
+                const { path, content } = parameters as { path: string; content: string };
+                if (!path || !content) {
+                    res.status(400).json({
+                        status: 'error',
+                        message: 'path and content are required for write_to_file'
+                    });
+                    return;
+                }
+                await fileSystem.writeFile(path, content);
+                break;
+            }
+            case 'read_file': {
+                const { path, start_line, end_line } = parameters as { path: string; start_line?: number; end_line?: number };
+                if (!path) {
+                    res.status(400).json({
+                        status: 'error',
+                        message: 'path is required for read_file'
+                    });
+                    return;
+                }
+                const content = await fileSystem.readFile(path, start_line, end_line);
+                res.json({
+                    status: 'success',
+                    data: {
+                        toolName,
+                        content
+                    }
+                });
+                return;
+            }
+            case 'search_files': {
+                const { path, regex, file_pattern } = parameters as { path: string; regex: string; file_pattern?: string };
+                if (!path || !regex) {
+                    res.status(400).json({
+                        status: 'error',
+                        message: 'path and regex are required for search_files'
+                    });
+                    return;
+                }
+                await fileSystem.searchFiles(path, regex, file_pattern);
+                break;
+            }
+            default:
+                res.status(400).json({
+                    status: 'error',
+                    message: `Unknown tool: ${toolName}`
+                });
+                return;
+        }
+
         res.json({
             status: 'success',
             data: {
@@ -91,7 +142,6 @@ const getToolStatus: RequestHandler = (
     const { executionId } = req.params;
 
     try {
-        // TODO: Implement actual tool status checking
         res.json({
             status: 'success',
             data: {

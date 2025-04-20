@@ -13,7 +13,7 @@ const mockDispose = jest.fn()
 let registeredTabChangeCallback: (() => Promise<void>) | null = null
 
 // Mock workspace path
-jest.mock("../../../utils/path", () => ({
+// jest.mock("../../../utils/path", () => ({
 	getWorkspacePath: jest.fn().mockReturnValue("/test/workspace"),
 	toRelativePath: jest.fn((path, cwd) => {
 		// Handle both Windows and POSIX paths by using path.relative
@@ -25,7 +25,7 @@ jest.mock("../../../utils/path", () => ({
 	}),
 }))
 
-// Mock watcher - must be defined after mockDispose but before jest.mock("vscode")
+// Mock watcher - must be defined after mockDispose but before // jest.mock("vscode")
 const mockWatcher = {
 	onDidCreate: mockOnDidCreate.mockReturnValue({ dispose: mockDispose }),
 	onDidDelete: mockOnDidDelete.mockReturnValue({ dispose: mockDispose }),
@@ -33,7 +33,7 @@ const mockWatcher = {
 }
 
 // Mock vscode
-jest.mock("vscode", () => ({
+// jest.mock("vscode", () => ({
 	window: {
 		tabGroups: {
 			onDidChangeTabs: jest.fn((callback) => {
@@ -60,7 +60,7 @@ jest.mock("vscode", () => ({
 	FileType: { File: 1, Directory: 2 },
 }))
 
-jest.mock("../../../services/glob/list-files")
+// jest.mock("../../../services/glob/list-files")
 
 describe("WorkspaceTracker", () => {
 	let workspaceTracker: WorkspaceTracker
@@ -74,7 +74,7 @@ describe("WorkspaceTracker", () => {
 		registeredTabChangeCallback = null
 
 		// Reset workspace path mock
-		;(getWorkspacePath as jest.Mock).mockReturnValue("/test/workspace")
+		;(getWorkspacePath // as jest.Mock).mockReturnValue("/test/workspace")
 
 		// Create provider mock
 		mockProvider = {
@@ -90,7 +90,7 @@ describe("WorkspaceTracker", () => {
 
 	it("should initialize with workspace files", async () => {
 		const mockFiles = [["/test/workspace/file1.ts", "/test/workspace/file2.ts"], false]
-		;(listFiles as jest.Mock).mockResolvedValue(mockFiles)
+		;(listFiles // as jest.Mock).mockResolvedValue(mockFiles)
 
 		await workspaceTracker.initializeFilePaths()
 		jest.runAllTimers()
@@ -100,7 +100,7 @@ describe("WorkspaceTracker", () => {
 			filePaths: expect.arrayContaining(["file1.ts", "file2.ts"]),
 			openedTabs: [],
 		})
-		expect((mockProvider.postMessageToWebview as jest.Mock).mock.calls[0][0].filePaths).toHaveLength(2)
+		expect((mockProvider.postMessageToWebview // as jest.Mock).mock.calls[0][0].filePaths).toHaveLength(2)
 	})
 
 	it("should handle file creation events", async () => {
@@ -137,7 +137,7 @@ describe("WorkspaceTracker", () => {
 
 	it("should handle directory paths correctly", async () => {
 		// Mock stat to return directory type
-		;(vscode.workspace.fs.stat as jest.Mock).mockResolvedValueOnce({ type: 2 }) // FileType.Directory = 2
+		;(vscode.workspace.fs.stat // as jest.Mock).mockResolvedValueOnce({ type: 2 }) // FileType.Directory = 2
 
 		const [[callback]] = mockOnDidCreate.mock.calls
 		await callback({ fsPath: "/test/workspace/newdir" })
@@ -148,21 +148,21 @@ describe("WorkspaceTracker", () => {
 			filePaths: expect.arrayContaining(["newdir"]),
 			openedTabs: [],
 		})
-		const lastCall = (mockProvider.postMessageToWebview as jest.Mock).mock.calls.slice(-1)[0]
+		const lastCall = (mockProvider.postMessageToWebview // as jest.Mock).mock.calls.slice(-1)[0]
 		expect(lastCall[0].filePaths).toHaveLength(1)
 	})
 
 	it("should respect file limits", async () => {
 		// Create array of unique file paths for initial load
 		const files = Array.from({ length: 1001 }, (_, i) => `/test/workspace/file${i}.ts`)
-		;(listFiles as jest.Mock).mockResolvedValue([files, false])
+		;(listFiles // as jest.Mock).mockResolvedValue([files, false])
 
 		await workspaceTracker.initializeFilePaths()
 		jest.runAllTimers()
 
 		// Should only have 1000 files initially
 		const expectedFiles = Array.from({ length: 1000 }, (_, i) => `file${i}.ts`).sort()
-		const calls = (mockProvider.postMessageToWebview as jest.Mock).mock.calls
+		const calls = (mockProvider.postMessageToWebview // as jest.Mock).mock.calls
 
 		expect(mockProvider.postMessageToWebview).toHaveBeenCalledWith({
 			type: "workspaceUpdated",
@@ -178,14 +178,14 @@ describe("WorkspaceTracker", () => {
 		}
 		jest.runAllTimers()
 
-		const lastCall = (mockProvider.postMessageToWebview as jest.Mock).mock.calls.slice(-1)[0]
+		const lastCall = (mockProvider.postMessageToWebview // as jest.Mock).mock.calls.slice(-1)[0]
 		expect(lastCall[0].filePaths).toHaveLength(2000)
 
 		// Adding one more file beyond 2000 should not increase the count
 		await callback({ fsPath: "/test/workspace/toomany.ts" })
 		jest.runAllTimers()
 
-		const finalCall = (mockProvider.postMessageToWebview as jest.Mock).mock.calls.slice(-1)[0]
+		const finalCall = (mockProvider.postMessageToWebview // as jest.Mock).mock.calls.slice(-1)[0]
 		expect(finalCall[0].filePaths).toHaveLength(2000)
 	})
 
@@ -206,7 +206,7 @@ describe("WorkspaceTracker", () => {
 		expect(registeredTabChangeCallback).not.toBeNull()
 
 		// Set initial workspace path and create tracker
-		;(getWorkspacePath as jest.Mock).mockReturnValue("/test/workspace")
+		;(getWorkspacePath // as jest.Mock).mockReturnValue("/test/workspace")
 		workspaceTracker = new WorkspaceTracker(mockProvider)
 
 		// Clear any initialization calls
@@ -214,10 +214,10 @@ describe("WorkspaceTracker", () => {
 
 		// Mock listFiles to return some files
 		const mockFiles = [["/test/new-workspace/file1.ts"], false]
-		;(listFiles as jest.Mock).mockResolvedValue(mockFiles)
+		;(listFiles // as jest.Mock).mockResolvedValue(mockFiles)
 
 		// Change workspace path
-		;(getWorkspacePath as jest.Mock).mockReturnValue("/test/new-workspace")
+		;(getWorkspacePath // as jest.Mock).mockReturnValue("/test/new-workspace")
 
 		// Simulate tab change event
 		await registeredTabChangeCallback!()
@@ -243,12 +243,12 @@ describe("WorkspaceTracker", () => {
 
 	it("should not update file paths if workspace changes during initialization", async () => {
 		// Setup initial workspace path
-		;(getWorkspacePath as jest.Mock).mockReturnValue("/test/workspace")
+		;(getWorkspacePath // as jest.Mock).mockReturnValue("/test/workspace")
 		workspaceTracker = new WorkspaceTracker(mockProvider)
 
 		// Clear any initialization calls
 		jest.clearAllMocks()
-		;(mockProvider.postMessageToWebview as jest.Mock).mockClear()
+		;(mockProvider.postMessageToWebview // as jest.Mock).mockClear()
 
 		// Create a promise to control listFiles timing
 		let resolveListFiles: (value: [string[], boolean]) => void
@@ -257,9 +257,9 @@ describe("WorkspaceTracker", () => {
 		})
 
 		// Setup listFiles to use our controlled promise
-		;(listFiles as jest.Mock).mockImplementation(() => {
+		;(listFiles // as jest.Mock).mockImplementation(() => {
 			// Change workspace path before listFiles resolves
-			;(getWorkspacePath as jest.Mock).mockReturnValue("/test/changed-workspace")
+			;(getWorkspacePath // as jest.Mock).mockReturnValue("/test/changed-workspace")
 			return listFilesPromise
 		})
 
@@ -282,7 +282,7 @@ describe("WorkspaceTracker", () => {
 		)
 
 		// Extract the actual file paths to verify format
-		const actualFilePaths = (mockProvider.postMessageToWebview as jest.Mock).mock.calls[0][0].filePaths
+		const actualFilePaths = (mockProvider.postMessageToWebview // as jest.Mock).mock.calls[0][0].filePaths
 
 		// Verify file path array length
 		expect(actualFilePaths).toHaveLength(2)
@@ -297,13 +297,13 @@ describe("WorkspaceTracker", () => {
 		expect(registeredTabChangeCallback).not.toBeNull()
 
 		// Set initial workspace path
-		;(getWorkspacePath as jest.Mock).mockReturnValue("/test/workspace")
+		;(getWorkspacePath // as jest.Mock).mockReturnValue("/test/workspace")
 
 		// Create tracker instance to set initial prevWorkSpacePath
 		workspaceTracker = new WorkspaceTracker(mockProvider)
 
 		// Change workspace path to trigger update
-		;(getWorkspacePath as jest.Mock).mockReturnValue("/test/new-workspace")
+		;(getWorkspacePath // as jest.Mock).mockReturnValue("/test/new-workspace")
 
 		// Call workspaceDidReset through tab change event
 		await registeredTabChangeCallback!()
@@ -327,7 +327,7 @@ describe("WorkspaceTracker", () => {
 		expect(registeredTabChangeCallback).not.toBeNull()
 
 		// Mock workspace path change to trigger resetTimer
-		;(getWorkspacePath as jest.Mock)
+		;(getWorkspacePath // as jest.Mock)
 			.mockReturnValueOnce("/test/workspace")
 			.mockReturnValueOnce("/test/new-workspace")
 
