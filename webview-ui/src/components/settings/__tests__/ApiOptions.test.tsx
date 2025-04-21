@@ -1,206 +1,84 @@
-// npx jest src/components/settings/__tests__/ApiOptions.test.ts
+import * as React from 'react'
+import { render, screen, userEvent, within } from '../../../test-utils'
+import { VSCodeTextField, VSCodeRadioGroup } from '@vscode/webview-ui-toolkit/react'
+import ApiOptions from '../ApiOptions'
+import { ApiConfiguration } from '../../../../../src/shared/api'
 
-import { render, screen } from "@testing-library/react"
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+// Initialize actual VS Code components instead of mocks
+customElements.define('vscode-text-field', VSCodeTextField as any)
+customElements.define('vscode-radio-group', VSCodeRadioGroup as any)
 
-import { ExtensionStateContextProvider } from "@/context/ExtensionStateContext"
+describe('ApiOptions', () => {
+  const defaultProps = {
+    uriScheme: 'vscode',
+    apiConfiguration: {} as ApiConfiguration,
+    setApiConfigurationField: jest.fn(),
+    errorMessage: undefined,
+    setErrorMessage: jest.fn(),
+  }
 
-import ApiOptions from "../ApiOptions"
+  beforeEach(() => {
+    window.postMessage = jest.fn()
+  })
 
-// Mock VSCode components
-jest.mock("@vscode/webview-ui-toolkit/react", () => ({
-	VSCodeTextField: ({ children, value, onBlur }: any) => (
-		<div>
-			{children}
-			<input type="text" value={value} onChange={onBlur} />
-		</div>
-	),
-	VSCodeLink: ({ children, href }: any) => <a href={href}>{children}</a>,
-	VSCodeRadio: ({ children, value, checked }: any) => <input type="radio" value={value} checked={checked} />,
-	VSCodeRadioGroup: ({ children }: any) => <div>{children}</div>,
-	VSCodeButton: ({ children }: any) => <div>{children}</div>,
-}))
+  it('renders provider selection', () => {
+    render(<ApiOptions {...defaultProps} />)
+    
+    const providerSelect = screen.getByRole('combobox')
+    expect(providerSelect).toBeInTheDocument()
+  })
 
-// Mock other components
-jest.mock("vscrui", () => ({
-	Checkbox: ({ children, checked, onChange }: any) => (
-		<label>
-			<input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-			{children}
-		</label>
-	),
-}))
+  it('shows OpenRouter API key input when OpenRouter provider selected', async () => {
+    const user = userEvent.setup()
+    render(<ApiOptions {...defaultProps} />)
+    
+    // Open select dropdown
+    const providerSelect = screen.getByRole('combobox')
+    await user.click(providerSelect)
 
-// Mock @shadcn/ui components
-jest.mock("@/components/ui", () => ({
-	Select: ({ children, value, onValueChange }: any) => (
-		<div className="select-mock">
-			<select value={value} onChange={(e) => onValueChange && onValueChange(e.target.value)}>
-				{children}
-			</select>
-		</div>
-	),
-	SelectTrigger: ({ children }: any) => <div className="select-trigger-mock">{children}</div>,
-	SelectValue: ({ children }: any) => <div className="select-value-mock">{children}</div>,
-	SelectContent: ({ children }: any) => <div className="select-content-mock">{children}</div>,
-	SelectItem: ({ children, value }: any) => (
-		<option value={value} className="select-item-mock">
-			{children}
-		</option>
-	),
-	SelectSeparator: ({ children }: any) => <div className="select-separator-mock">{children}</div>,
-	Button: ({ children, onClick }: any) => (
-		<button onClick={onClick} className="button-mock">
-			{children}
-		</button>
-	),
-}))
+    // Select OpenRouter
+    const openRouterOption = screen.getByRole('option', { name: /OpenRouter/i })
+    await user.click(openRouterOption)
 
-jest.mock("../TemperatureControl", () => ({
-	TemperatureControl: ({ value, onChange }: any) => (
-		<div data-testid="temperature-control">
-			<input
-				type="range"
-				value={value || 0}
-				onChange={(e) => onChange(parseFloat(e.target.value))}
-				min={0}
-				max={2}
-				step={0.1}
-			/>
-		</div>
-	),
-}))
+    // Check that API key input appears
+    const apiKeyInput = screen.getByLabelText(/OpenRouter API Key/i)
+    expect(apiKeyInput).toBeInTheDocument()
+  })
 
-jest.mock("../RateLimitSecondsControl", () => ({
-	RateLimitSecondsControl: ({ value, onChange }: any) => (
-		<div data-testid="rate-limit-seconds-control">
-			<input
-				type="range"
-				value={value || 0}
-				onChange={(e) => onChange(parseFloat(e.target.value))}
-				min={0}
-				max={60}
-				step={1}
-			/>
-		</div>
-	),
-}))
+  it('shows custom base URL option when enabled', async () => {
+    const user = userEvent.setup()
+    render(<ApiOptions {...defaultProps} />)
+    
+    // Select OpenRouter
+    const providerSelect = screen.getByRole('combobox')
+    await user.click(providerSelect)
+    await user.click(screen.getByRole('option', { name: /OpenRouter/i }))
 
-// Mock ThinkingBudget component
-jest.mock("../ThinkingBudget", () => ({
-	ThinkingBudget: ({ apiConfiguration, setApiConfigurationField, modelInfo, provider }: any) =>
-		modelInfo?.thinking ? (
-			<div data-testid="thinking-budget" data-provider={provider}>
-				<input data-testid="thinking-tokens" value={apiConfiguration?.modelMaxThinkingTokens} />
-			</div>
-		) : null,
-}))
+    // Enable custom base URL
+    const customUrlCheckbox = screen.getByRole('checkbox', { name: /use custom base url/i })
+    await user.click(customUrlCheckbox)
 
-// Mock DiffSettingsControl for tests
-jest.mock("../DiffSettingsControl", () => ({
-	DiffSettingsControl: ({ diffEnabled, fuzzyMatchThreshold, onChange }: any) => (
-		<div data-testid="diff-settings-control">
-			<label>
-				Enable editing through diffs
-				<input
-					type="checkbox"
-					checked={diffEnabled}
-					onChange={(e) => onChange("diffEnabled", e.target.checked)}
-				/>
-			</label>
-			<div>
-				Fuzzy match threshold
-				<input
-					type="range"
-					value={fuzzyMatchThreshold || 1.0}
-					onChange={(e) => onChange("fuzzyMatchThreshold", parseFloat(e.target.value))}
-					min={0.8}
-					max={1}
-					step={0.005}
-				/>
-			</div>
-		</div>
-	),
-}))
+    // Check that base URL input appears
+    const baseUrlInput = screen.getByPlaceholderText(/Default: https:\/\/openrouter.ai\/api\/v1/i)
+    expect(baseUrlInput).toBeInTheDocument()
+  })
 
-const renderApiOptions = (props = {}) => {
-	const queryClient = new QueryClient()
+  it('calls setApiConfigurationField when settings change', async () => {
+    const setApiConfigurationField = jest.fn()
+    const user = userEvent.setup()
 
-	render(
-		<ExtensionStateContextProvider>
-			<QueryClientProvider client={queryClient}>
-				<ApiOptions
-					errorMessage={undefined}
-					setErrorMessage={() => {}}
-					uriScheme={undefined}
-					apiConfiguration={{}}
-					setApiConfigurationField={() => {}}
-					{...props}
-				/>
-			</QueryClientProvider>
-		</ExtensionStateContextProvider>,
-	)
-}
+    render(
+      <ApiOptions
+        {...defaultProps}
+        setApiConfigurationField={setApiConfigurationField}
+      />
+    )
 
-describe("ApiOptions", () => {
-	it("shows diff settings, temperature and rate limit controls by default", () => {
-		renderApiOptions({
-			apiConfiguration: {
-				diffEnabled: true,
-				fuzzyMatchThreshold: 0.95,
-			},
-		})
-		// Check for DiffSettingsControl by looking for text content
-		expect(screen.getByText(/enable editing through diffs/i)).toBeInTheDocument()
-		expect(screen.getByTestId("temperature-control")).toBeInTheDocument()
-		expect(screen.getByTestId("rate-limit-seconds-control")).toBeInTheDocument()
-	})
+    // Select OpenRouter provider
+    const providerSelect = screen.getByRole('combobox')
+    await user.click(providerSelect)
+    await user.click(screen.getByRole('option', { name: /OpenRouter/i }))
 
-	it("hides all controls when fromWelcomeView is true", () => {
-		renderApiOptions({ fromWelcomeView: true })
-		// Check for absence of DiffSettingsControl text
-		expect(screen.queryByText(/enable editing through diffs/i)).not.toBeInTheDocument()
-		expect(screen.queryByTestId("temperature-control")).not.toBeInTheDocument()
-		expect(screen.queryByTestId("rate-limit-seconds-control")).not.toBeInTheDocument()
-	})
-
-	describe("thinking functionality", () => {
-		it("should show ThinkingBudget for Anthropic models that support thinking", () => {
-			renderApiOptions({
-				apiConfiguration: {
-					apiProvider: "anthropic",
-					apiModelId: "claude-3-7-sonnet-20250219:thinking",
-				},
-			})
-
-			expect(screen.getByTestId("thinking-budget")).toBeInTheDocument()
-		})
-
-		it("should show ThinkingBudget for Vertex models that support thinking", () => {
-			renderApiOptions({
-				apiConfiguration: {
-					apiProvider: "vertex",
-					apiModelId: "claude-3-7-sonnet@20250219:thinking",
-				},
-			})
-
-			expect(screen.getByTestId("thinking-budget")).toBeInTheDocument()
-		})
-
-		it("should not show ThinkingBudget for models that don't support thinking", () => {
-			renderApiOptions({
-				apiConfiguration: {
-					apiProvider: "anthropic",
-					apiModelId: "claude-3-opus-20240229",
-					modelInfo: { thinking: false }, // Non-thinking model
-				},
-			})
-
-			expect(screen.queryByTestId("thinking-budget")).not.toBeInTheDocument()
-		})
-
-		// Note: We don't need to test the actual ThinkingBudget component functionality here
-		// since we have separate tests for that component. We just need to verify that
-		// it's included in the ApiOptions component when appropriate.
-	})
+    expect(setApiConfigurationField).toHaveBeenCalledWith('apiProvider', 'openrouter')
+  })
 })

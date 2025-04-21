@@ -1,18 +1,16 @@
-export * from "./alert-dialog"
-export * from "./autosize-textarea"
-export * from "./badge"
-export * from "./button"
-export * from "./checkbox"
-export * from "./collapsible"
-export * from "./command"
-export * from "./dialog"
-export * from "./dropdown-menu"
-export * from "./input"
-export * from "./popover"
-export * from "./progress"
-export * from "./separator"
-export * from "./slider"
-export * from "./select-dropdown"
-export * from "./select"
-export * from "./textarea"
-export * from "./tooltip"
+// Export React types
+import { type ChangeEvent } from 'react';
+
+// Export components with correct folder paths
+export { Input } from './input/index';
+export { Label } from './label/index';
+
+// Export types
+export type { InputProps } from './input/index';
+export type { LabelProps } from './label/index';
+export type { ChangeEvent };
+
+// Export commonly used interfaces
+export interface BaseProps {
+  className?: string;
+}

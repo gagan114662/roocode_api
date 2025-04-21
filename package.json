@@ -1,10 +1,9 @@
 {
-  "name": "roocode-api",
+  "name": "roo-code",
   "version": "1.0.0",
+  "description": "Roo Code API and Extension",
+  "main": "dist/extension.js",
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "ts-node-dev src/index.ts",
     "test": "jest",
     "test:api": "jest -c jest.config.api.js",
     "test:api:watch": "jest -c jest.config.api.js --watch",
@@ -22,6 +21,19 @@
     "worker": "ts-node -r dotenv/config src/api/workers/index.ts",
     "postinstall": "npm run build:api"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-username/roo-code.git"
+  },
+  "keywords": [
+    "roo",
+    "code",
+    "api",
+    "vscode",
+    "extension"
+  ],
+  "author": "",
+  "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "@google-cloud/vertexai": "^1.9.3",

@@ -12,7 +12,11 @@ import { mcpRouter } from './routes/mcp';
 import { chatRouter } from './routes/chat';
 import { terminalRouter } from './routes/terminal';
 import { visionRouter } from './routes/vision';
-import { updateDepsRouter } from './routes/updateDeps';
+import { projectsRouter } from './routes/projects';
+import { codegenRouter } from './routes/codegen';
+import { planningRouter } from './routes/planning';
+import { contextRouter } from './routes/context';
+import { qaRouter } from './routes/qa';
 import { setupSwagger } from './swagger';
 
 export const createApp = () => {
@@ -58,7 +62,11 @@ export const createApp = () => {
     apiRouter.use('/chat', chatRouter);
     apiRouter.use('/terminal', terminalRouter);
     apiRouter.use('/vision', visionRouter);
-    apiRouter.use('/projects', updateDepsRouter); // Add dependency update routes
+    apiRouter.use('/projects', projectsRouter);
+    apiRouter.use('/codegen', codegenRouter);
+    apiRouter.use('/planning', planningRouter);
+    apiRouter.use('/context', contextRouter);
+    apiRouter.use('/qa', qaRouter);
 
     // Error handling
     app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

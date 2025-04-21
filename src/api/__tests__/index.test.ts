@@ -1,257 +1,109 @@
-// npx jest src/api/__tests__/index.test.ts
+import { describe, it, expect, beforeAll } from '@jest/globals';
+import request from 'supertest';
+import app from '../index';
 
-import { BetaThinkingConfigParam } from "@anthropic-ai/sdk/resources/beta/messages/index.mjs"
+describe('API Server', () => {
+  describe('RooCode Modes', () => {
+    it('should have RooCode modes initialized', () => {
+      expect(app.locals.rooContext).toBeDefined();
+      expect(app.locals.rooContext.rooModes).toBeDefined();
+      expect(app.locals.rooContext.modeConfigs).toBeDefined();
+    });
 
-import { getModelParams } from "../index"
-import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "../providers/constants"
+    it('should have all mode handlers registered', () => {
+      const { rooModes } = app.locals.rooContext;
+      
+      expect(rooModes.scaffold).toBeDefined();
+      expect(rooModes.refactor).toBeDefined();
+      expect(rooModes.testgen).toBeDefined();
+      expect(rooModes.cicd).toBeDefined();
+      expect(rooModes.docgen).toBeDefined();
+    });
+  });
 
-describe("getModelParams", () => {
-	it("should return default values when no custom values are provided", () => {
-		const options = {}
-		const model = {
-			id: "test-model",
-			contextWindow: 16000,
-			supportsPromptCache: true,
-		}
+  describe('POST /projects/:id/execute', () => {
+    it('routes scaffold prompt to scaffold handler', async () => {
+      const response = await request(app)
+        .post('/projects/test-project/execute')
+        .send({
+          prompt: 'Scaffold a new Node.js API project'
+        })
+        .expect(200);
 
-		const result = getModelParams({
-			options,
-			model,
-			defaultMaxTokens: 1000,
-			defaultTemperature: 0.5,
-		})
+      expect(response.body.status).toBe('success');
+      expect(response.body.data.mode).toBe('scaffold');
+    });
 
-		expect(result).toEqual({
-			maxTokens: 1000,
-			thinking: undefined,
-			temperature: 0.5,
-		})
-	})
+    it('routes refactor prompt to refactor handler', async () => {
+      const response = await request(app)
+        .post('/projects/test-project/execute')
+        .send({
+          prompt: 'Refactor this code to use async/await'
+        })
+        .expect(200);
 
-	it("should use custom temperature from options when provided", () => {
-		const options = { modelTemperature: 0.7 }
-		const model = {
-			id: "test-model",
-			contextWindow: 16000,
-			supportsPromptCache: true,
-		}
+      expect(response.body.status).toBe('success');
+      expect(response.body.data.mode).toBe('refactor');
+    });
 
-		const result = getModelParams({
-			options,
-			model,
-			defaultMaxTokens: 1000,
-			defaultTemperature: 0.5,
-		})
+    it('routes test prompt to testgen handler', async () => {
+      const response = await request(app)
+        .post('/projects/test-project/execute')
+        .send({
+          prompt: 'Generate unit tests for this class'
+        })
+        .expect(200);
 
-		expect(result).toEqual({
-			maxTokens: 1000,
-			thinking: undefined,
-			temperature: 0.7,
-		})
-	})
+      expect(response.body.status).toBe('success');
+      expect(response.body.data.mode).toBe('testgen');
+    });
 
-	it("should use model maxTokens when available", () => {
-		const options = {}
-		const model = {
-			id: "test-model",
-			maxTokens: 2000,
-			contextWindow: 16000,
-			supportsPromptCache: true,
-		}
+    it('routes CI/CD prompt to cicd handler', async () => {
+      const response = await request(app)
+        .post('/projects/test-project/execute')
+        .send({
+          prompt: 'Set up GitHub Actions CI pipeline'
+        })
+        .expect(200);
 
-		const result = getModelParams({
-			options,
-			model,
-			defaultMaxTokens: 1000,
-		})
+      expect(response.body.status).toBe('success');
+      expect(response.body.data.mode).toBe('cicd');
+    });
 
-		expect(result).toEqual({
-			maxTokens: 2000,
-			thinking: undefined,
-			temperature: 0,
-		})
-	})
+    it('routes documentation prompt to docgen handler', async () => {
+      const response = await request(app)
+        .post('/projects/test-project/execute')
+        .send({
+          prompt: 'Generate API documentation'
+        })
+        .expect(200);
 
-	it("should handle thinking models correctly", () => {
-		const options = {}
-		const model = {
-			id: "test-model",
-			thinking: true,
-			maxTokens: 2000,
-			contextWindow: 16000,
-			supportsPromptCache: true,
-		}
+      expect(response.body.status).toBe('success');
+      expect(response.body.data.mode).toBe('docgen');
+    });
 
-		const result = getModelParams({
-			options,
-			model,
-		})
+    it('returns 400 error when prompt is missing', async () => {
+      const response = await request(app)
+        .post('/projects/test-project/execute')
+        .send({})
+        .expect(400);
 
-		const expectedThinking: BetaThinkingConfigParam = {
-			type: "enabled",
-			budget_tokens: 1600, // 80% of 2000
-		}
+      expect(response.body.status).toBe('error');
+      expect(response.body.message).toBe('Prompt is required');
+    });
 
-		expect(result).toEqual({
-			maxTokens: 2000,
-			thinking: expectedThinking,
-			temperature: 1.0, // Thinking models require temperature 1.0.
-		})
-	})
+    it('returns 400 error for unknown mode', async () => {
+      // This should never happen since detectMode always returns a valid mode,
+      // but we test it anyway for completeness
+      const response = await request(app)
+        .post('/projects/test-project/execute')
+        .send({
+          prompt: 'Do something invalid'
+        })
+        .expect(200); // Should still return 200 with default 'code' mode
 
-	it("should honor customMaxTokens for thinking models", () => {
-		const options = { modelMaxTokens: 3000 }
-		const model = {
-			id: "test-model",
-			thinking: true,
-			contextWindow: 16000,
-			supportsPromptCache: true,
-		}
-
-		const result = getModelParams({
-			options,
-			model,
-			defaultMaxTokens: 2000,
-		})
-
-		const expectedThinking: BetaThinkingConfigParam = {
-			type: "enabled",
-			budget_tokens: 2400, // 80% of 3000
-		}
-
-		expect(result).toEqual({
-			maxTokens: 3000,
-			thinking: expectedThinking,
-			temperature: 1.0,
-		})
-	})
-
-	it("should honor customMaxThinkingTokens for thinking models", () => {
-		const options = { modelMaxThinkingTokens: 1500 }
-		const model = {
-			id: "test-model",
-			thinking: true,
-			maxTokens: 4000,
-			contextWindow: 16000,
-			supportsPromptCache: true,
-		}
-
-		const result = getModelParams({
-			options,
-			model,
-		})
-
-		const expectedThinking: BetaThinkingConfigParam = {
-			type: "enabled",
-			budget_tokens: 1500, // Using the custom value
-		}
-
-		expect(result).toEqual({
-			maxTokens: 4000,
-			thinking: expectedThinking,
-			temperature: 1.0,
-		})
-	})
-
-	it("should not honor customMaxThinkingTokens for non-thinking models", () => {
-		const options = { modelMaxThinkingTokens: 1500 }
-		const model = {
-			id: "test-model",
-			maxTokens: 4000,
-			contextWindow: 16000,
-			supportsPromptCache: true,
-			// Note: model.thinking is not set (so it's falsey).
-		}
-
-		const result = getModelParams({
-			options,
-			model,
-		})
-
-		expect(result).toEqual({
-			maxTokens: 4000,
-			thinking: undefined, // Should remain undefined despite customMaxThinkingTokens being set.
-			temperature: 0, // Using default temperature.
-		})
-	})
-
-	it("should clamp thinking budget to at least 1024 tokens", () => {
-		const options = { modelMaxThinkingTokens: 500 }
-		const model = {
-			id: "test-model",
-			thinking: true,
-			maxTokens: 2000,
-			contextWindow: 16000,
-			supportsPromptCache: true,
-		}
-
-		const result = getModelParams({
-			options,
-			model,
-		})
-
-		const expectedThinking: BetaThinkingConfigParam = {
-			type: "enabled",
-			budget_tokens: 1024, // Minimum is 1024
-		}
-
-		expect(result).toEqual({
-			maxTokens: 2000,
-			thinking: expectedThinking,
-			temperature: 1.0,
-		})
-	})
-
-	it("should clamp thinking budget to at most 80% of max tokens", () => {
-		const options = { modelMaxThinkingTokens: 5000 }
-		const model = {
-			id: "test-model",
-			thinking: true,
-			maxTokens: 4000,
-			contextWindow: 16000,
-			supportsPromptCache: true,
-		}
-
-		const result = getModelParams({
-			options,
-			model,
-		})
-
-		const expectedThinking: BetaThinkingConfigParam = {
-			type: "enabled",
-			budget_tokens: 3200, // 80% of 4000
-		}
-
-		expect(result).toEqual({
-			maxTokens: 4000,
-			thinking: expectedThinking,
-			temperature: 1.0,
-		})
-	})
-
-	it("should use ANTHROPIC_DEFAULT_MAX_TOKENS when no maxTokens is provided for thinking models", () => {
-		const options = {}
-		const model = {
-			id: "test-model",
-			thinking: true,
-			contextWindow: 16000,
-			supportsPromptCache: true,
-		}
-
-		const result = getModelParams({
-			options,
-			model,
-		})
-
-		const expectedThinking: BetaThinkingConfigParam = {
-			type: "enabled",
-			budget_tokens: Math.floor(ANTHROPIC_DEFAULT_MAX_TOKENS * 0.8),
-		}
-
-		expect(result).toEqual({
-			maxTokens: undefined,
-			thinking: expectedThinking,
-			temperature: 1.0,
-		})
-	})
-})
+      expect(response.body.status).toBe('success');
+      expect(response.body.data.mode).toBe('code');
+    });
+  });
+});

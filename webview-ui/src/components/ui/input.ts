@@ -1,0 +1,1 @@
+// This file intentionally empty - replacing Input.tsx to fix case sensitivity issue

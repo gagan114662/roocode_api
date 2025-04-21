@@ -8,6 +8,7 @@ const router = Router();
 interface ChatMessage {
     message: string;
     mode?: 'ask' | 'code' | 'architect' | 'debug';
+    projectId?: string;
 }
 
 interface TypedRequestWithBody<T> extends AuthenticatedRequest {
@@ -20,7 +21,7 @@ const sendMessage: RequestHandler = async (
     res: Response,
     next: NextFunction
 ): Promise<void> => {
-    const { message, mode } = req.body;
+    const { message, mode, projectId } = req.body;
 
     if (!message) {
         res.status(400).json({
@@ -31,7 +32,7 @@ const sendMessage: RequestHandler = async (
     }
 
     try {
-        const response = await chatService.handleMessage(message, mode);
+        const response = await chatService.handleMessage(message, mode, projectId);
 
         res.json({
             status: 'success',
@@ -87,9 +88,39 @@ const clearHistory: RequestHandler = async (
     }
 };
 
+// Set project ID for context
+const setProjectId: RequestHandler = async (
+    req: AuthenticatedRequest & { body: { projectId: string } },
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const { projectId } = req.body;
+        
+        if (!projectId) {
+            res.status(400).json({
+                status: 'error',
+                message: 'Project ID is required'
+            });
+            return;
+        }
+        
+        chatService.setProjectId(projectId);
+        
+        res.json({
+            status: 'success',
+            message: `Project ID set to ${projectId}`,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 // Register routes with middleware
 router.post('/message', authorize(['write']), sendMessage);
 router.get('/history', authorize(['read']), getChatHistory);
 router.post('/clear', authorize(['write']), clearHistory);
+router.post('/project', authorize(['write']), setProjectId);
 
 export const chatRouter = router;
