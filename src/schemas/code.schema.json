@@ -1,0 +1,35 @@
+{
+  "$id": "https://roocode.ai/schemas/code.schema.json",
+  "type": "object",
+  "required": ["content", "language", "metadata"],
+  "properties": {
+    "content": { "type": "string" },
+    "language": { 
+      "type": "string",
+      "enum": ["typescript", "javascript", "python", "json", "yaml", "markdown"]
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["filename", "description"],
+      "properties": {
+        "filename": { "type": "string" },
+        "description": { "type": "string" },
+        "dependencies": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["description", "code"],
+        "properties": {
+          "description": { "type": "string" },
+          "code": { "type": "string" }
+        }
+      }
+    }
+  }
+}

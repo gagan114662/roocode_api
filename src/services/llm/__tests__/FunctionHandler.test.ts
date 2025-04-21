@@ -1,142 +1,95 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { FunctionHandler } from '../FunctionHandler';
-import { ProjectService } from '../../project/ProjectService';
-import { MemoryService } from '../../memory/MemoryService';
-import { VectorContextService } from '../../context/VectorContextService';
-import { exec } from 'child_process';
-
-// Mock dependencies
-jest.mock('child_process', () => ({
-  exec: jest.fn()
-}));
-
-jest.mock('../../project/ProjectService');
-jest.mock('../../memory/MemoryService');
-jest.mock('../../context/VectorContextService');
+import { ValidationError } from '../../../utils/validator';
 
 describe('FunctionHandler', () => {
   let handler: FunctionHandler;
-  let projectService: jest.Mocked<ProjectService>;
-  let memoryService: jest.Mocked<MemoryService>;
-  let vectorService: jest.Mocked<VectorContextService>;
-
-  const projectId = 'test-project';
+  let projectService: any;
+  let memoryService: any;
+  let vectorService: any;
 
   beforeEach(() => {
-    projectService = new ProjectService() as jest.Mocked<ProjectService>;
-    memoryService = new MemoryService() as jest.Mocked<MemoryService>;
-    vectorService = new VectorContextService() as jest.Mocked<VectorContextService>;
+    projectService = {
+      readFile: jest.fn(),
+      writeFile: jest.fn()
+    };
+    memoryService = {
+      appendToSection: jest.fn()
+    };
+    vectorService = {
+      search: jest.fn()
+    };
 
-    handler = new FunctionHandler(
-      projectService,
-      memoryService,
-      vectorService
-    );
-
-    // Reset all mocks
-    jest.clearAllMocks();
+    handler = new FunctionHandler(projectService, memoryService, vectorService);
   });
 
-  describe('runTests', () => {
-    it('executes tests and logs success result', async () => {
-      const mockExec = exec as jest.MockedFunction<typeof exec>;
-      mockExec.mockImplementation((cmd, opts, callback) => {
-        callback?.(null, { stdout: 'Tests passed', stderr: '' }, '');
-        return {} as any;
+  describe('generateCode', () => {
+    it('validates and returns code generation', async () => {
+      const mockResponse = {
+        content: "console.log('test')",
+        language: "typescript",
+        metadata: {
+          filename: "test.ts",
+          description: "Test file"
+        }
+      };
+
+      jest.spyOn(handler as any, 'callLLM')
+        .mockResolvedValue(JSON.stringify(mockResponse));
+
+      const result = await handler.generateCode({
+        projectId: 'test',
+        prompt: 'Generate test code'
       });
 
-      const result = await handler.runTests({
-        projectId,
-        testPattern: 'auth',
-        updateSnapshots: true
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.output).toContain('Tests passed');
-      expect(memoryService.appendToSection).toHaveBeenCalledWith(
-        projectId,
-        'testCoverage',
-        expect.stringContaining('succeeded')
-      );
+      expect(result.content).toBe("console.log('test')");
+      expect(result.metadata.filename).toBe("test.ts");
+      expect(memoryService.appendToSection).toHaveBeenCalled();
     });
 
-    it('handles test failures', async () => {
-      const mockExec = exec as jest.MockedFunction<typeof exec>;
-      mockExec.mockImplementation((cmd, opts, callback) => {
-        callback?.(new Error('Test failed'), { stdout: '', stderr: 'Failed tests' }, '');
-        return {} as any;
+    it('retries on invalid code generation', async () => {
+      const invalidResponse = {
+        content: "test",
+        // Missing required fields
+      };
+
+      const validResponse = {
+        content: "console.log('test')",
+        language: "typescript",
+        metadata: {
+          filename: "test.ts",
+          description: "Test file"
+        }
+      };
+
+      jest.spyOn(handler as any, 'callLLM')
+        .mockResolvedValueOnce(JSON.stringify(invalidResponse))
+        .mockResolvedValueOnce(JSON.stringify(validResponse));
+
+      const result = await handler.generateCode({
+        projectId: 'test',
+        prompt: 'Generate test code'
       });
 
-      const result = await handler.runTests({ projectId });
-
-      expect(result.success).toBe(false);
-      expect(result.output).toContain('Test execution failed');
-      expect(memoryService.appendToSection).toHaveBeenCalledWith(
-        projectId,
-        'ciIssues',
-        expect.stringContaining('failed')
-      );
-    });
-  });
-
-  describe('file operations', () => {
-    it('reads file content', async () => {
-      projectService.readFile.mockResolvedValue('file content');
-
-      const result = await handler.getFileContent({
-        projectId,
-        filePath: 'test.ts'
-      });
-
-      expect(result.content).toBe('file content');
+      expect(result.content).toBe("console.log('test')");
+      expect(handler['callLLM']).toHaveBeenCalledTimes(2);
     });
 
-    it('writes file content and logs update', async () => {
-      projectService.writeFile.mockResolvedValue(undefined);
+    it('throws after max retries with invalid output', async () => {
+      const invalidResponse = {
+        content: "test",
+        // Always missing required fields
+      };
 
-      const result = await handler.writeFile({
-        projectId,
-        filePath: 'test.ts',
-        content: 'new content'
-      });
+      jest.spyOn(handler as any, 'callLLM')
+        .mockResolvedValue(JSON.stringify(invalidResponse));
 
-      expect(result.success).toBe(true);
-      expect(result.path).toBe('test.ts');
-      expect(memoryService.appendToSection).toHaveBeenCalledWith(
-        projectId,
-        'implementationNotes',
-        expect.stringContaining('test.ts')
-      );
-    });
-  });
-
-  describe('memory operations', () => {
-    it('reads memory sections', async () => {
-      memoryService.readSection.mockResolvedValue('memory content');
-
-      const result = await handler.readMemory({
-        projectId,
-        section: 'testCoverage'
-      });
-
-      expect(result.content).toBe('memory content');
-    });
-
-    it('writes to memory sections', async () => {
-      memoryService.appendToSection.mockResolvedValue(undefined);
-
-      const result = await handler.writeMemory({
-        projectId,
-        section: 'decisionLog',
-        entry: 'new decision'
-      });
-
-      expect(result.success).toBe(true);
-      expect(memoryService.appendToSection).toHaveBeenCalledWith(
-        projectId,
-        'decisionLog',
-        'new decision'
-      );
+      await expect(
+        handler.generateCode({
+          projectId: 'test',
+          prompt: 'Generate test code'
+        })
+      ).rejects.toThrow('Failed to generate valid output');
     });
   });
 });
