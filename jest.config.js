@@ -26,24 +26,15 @@ module.exports = {
 		// PowerShell tests are conditionally skipped in the test files themselves using the setupFilesAfterEnv
 	],
 	moduleNameMapper: {
-		"^vscode$": "<rootDir>/src/__mocks__/vscode.js",
-		"@modelcontextprotocol/sdk$": "<rootDir>/src/__mocks__/@modelcontextprotocol/sdk/index.js",
-		"@modelcontextprotocol/sdk/(.*)": "<rootDir>/src/__mocks__/@modelcontextprotocol/sdk/$1",
-		"^delay$": "<rootDir>/src/__mocks__/delay.js",
-		"^p-wait-for$": "<rootDir>/src/__mocks__/p-wait-for.js",
-		"^globby$": "<rootDir>/src/__mocks__/globby.js",
-		"^serialize-error$": "<rootDir>/src/__mocks__/serialize-error.js",
-		"^strip-ansi$": "<rootDir>/src/__mocks__/strip-ansi.js",
-		"^default-shell$": "<rootDir>/src/__mocks__/default-shell.js",
-		"^os-name$": "<rootDir>/src/__mocks__/os-name.js",
-		"^strip-bom$": "<rootDir>/src/__mocks__/strip-bom.js",
+		"vscode": "<rootDir>/src/__tests__/helpers/vscode-env.ts",
+		"globby": "<rootDir>/src/__tests__/helpers/globby-mock.ts"
 	},
 	transformIgnorePatterns: [
-		"node_modules/(?!(@modelcontextprotocol|delay|p-wait-for|globby|serialize-error|strip-ansi|default-shell|os-name|strip-bom)/)",
+		"node_modules/(?!(@vscode|globby|node-fetch|data-uri-to-buffer|fetch-blob|formdata-polyfill|strip-ansi|ansi-regex|delay|p-wait-for|fastest-levenshtein|strip-bom|fzf|os-name|reconnecting-eventsource)/)"
 	],
 	roots: ["<rootDir>/src", "<rootDir>/webview-ui/src"],
 	modulePathIgnorePatterns: [".vscode-test"],
 	reporters: [["jest-simple-dot-reporter", {}]],
-	setupFiles: ["<rootDir>/src/__mocks__/jest.setup.ts"],
+
 	setupFilesAfterEnv: ["<rootDir>/src/integrations/terminal/__tests__/setupTerminalTests.ts"],
 }

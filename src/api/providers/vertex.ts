@@ -10,7 +10,8 @@ import { convertAnthropicMessageToVertexGemini } from "../transform/vertex-gemin
 import { BaseProvider } from "./base-provider"
 
 import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "./constants"
-import { getModelParams, SingleCompletionHandler } from "../"
+import { SingleCompletionHandler } from "../"
+import { getModelParams } from "../utils/model-params"
 import { GoogleAuth } from "google-auth-library"
 
 // Types for Vertex SDK

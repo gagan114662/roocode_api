@@ -1,45 +1,138 @@
-import { Configuration, OpenAIApi } from 'openai';
-import { Counter } from 'prom-client';
+import OpenAI from 'openai';
+import { BaseProvider, ProviderConfig, ProviderResponse, PromptOptions, promptOptionsSchema } from './baseProvider';
+import { z } from 'zod';
+import { getRequiredEnvVar } from '../../utils/env';
 
-const configuration = new Configuration({
-    apiKey: process.env.OPENAI_API_KEY,
+const openAIConfigSchema = z.object({
+  apiKey: z.string(),
+  organization: z.string().optional(),
+  baseURL: z.string().optional(),
+  defaultModel: z.string().default('gpt-4-turbo-preview')
 });
 
-export const openai = new OpenAIApi(configuration);
+export class OpenAIProvider implements BaseProvider {
+  private defaultModel: string;
+  private usage = {
+    totalTokens: 0,
+    totalCost: 0
+  };
+  protected config: ProviderConfig;
+  
+  // Private OpenAI client instance
+  private _client: OpenAI;
 
-// Prometheus metrics
-export const codexTokensUsed = new Counter({
-    name: 'codex_api_tokens_used_total',
-    help: 'Total number of tokens used in Codex API calls',
-    labelNames: ['mode']
-});
+  // Public getter for backward compatibility
+  get client(): OpenAI {
+    return this._client;
+  }
 
-export const defaultConfig = {
-    temperature: 0,
-    top_p: 1,
-    max_tokens: 2048,
-    frequency_penalty: 0,
-    presence_penalty: 0
-};
+  get chat(): OpenAI.Chat {
+    return this._client.chat;
+  }
 
-export const createCompletion = async (prompt: string, model = 'code-davinci-002') => {
-    const response = await openai.createCompletion({
-        ...defaultConfig,
-        model,
-        prompt
+  constructor() {
+    this.defaultModel = 'gpt-4-turbo-preview';
+    this.config = {
+      apiKey: getRequiredEnvVar('OPENAI_API_KEY'),
+      maxRetries: 3,
+      timeout: 30000
+    };
+    this._client = new OpenAI({
+      apiKey: this.config.apiKey
+    });
+  }
+
+  async init(config: ProviderConfig): Promise<void> {
+    const validated = openAIConfigSchema.parse({
+      apiKey: config.apiKey,
+      organization: config.organizationId,
+      baseURL: config.baseUrl,
+      defaultModel: 'gpt-4-turbo-preview'
     });
 
-    codexTokensUsed.inc({ mode: 'completion' }, response.data.usage?.total_tokens || 0);
-    return response.data.choices[0].text;
-};
+    this.defaultModel = validated.defaultModel;
+    this._client = new OpenAI({
+      apiKey: validated.apiKey,
+      organization: validated.organization,
+      baseURL: validated.baseURL
+    });
+    this.config = config;
+  }
 
-export const createChatCompletion = async (messages: any[], model = 'code-davinci-002') => {
-    const response = await openai.createChatCompletion({
-        ...defaultConfig,
-        model,
-        messages
+  async completePrompt(prompt: string, options: PromptOptions = {}): Promise<ProviderResponse> {
+    const validatedOptions = promptOptionsSchema.parse(options);
+
+    const response = await this.chat.completions.create({
+      model: this.defaultModel,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: validatedOptions.temperature ?? 0.7,
+      max_tokens: validatedOptions.maxTokens,
+      top_p: validatedOptions.topP,
+      frequency_penalty: validatedOptions.frequencyPenalty,
+      presence_penalty: validatedOptions.presencePenalty,
+      stop: validatedOptions.stop
     });
 
-    codexTokensUsed.inc({ mode: 'chat' }, response.data.usage?.total_tokens || 0);
-    return response.data.choices[0].message;
-};
+    const usage = response.usage;
+    if (usage) {
+      this.updateUsage(
+        usage.total_tokens,
+        usage.total_tokens * this.getTokenCost(this.defaultModel)
+      );
+    }
+
+    return {
+      content: response.choices[0]?.message?.content || '',
+      usage: usage ? {
+        promptTokens: usage.prompt_tokens,
+        completionTokens: usage.completion_tokens,
+        totalTokens: usage.total_tokens
+      } : undefined,
+      metadata: {
+        model: response.model,
+        finishReason: response.choices[0]?.finish_reason
+      }
+    };
+  }
+
+  async getUsage(): Promise<{ totalTokens: number; totalCost: number }> {
+    return this.usage;
+  }
+
+  async getModels(): Promise<string[]> {
+    const response = await this._client.models.list();
+    return response.data.map(model => model.id);
+  }
+
+  async validateConfig(config: ProviderConfig): Promise<boolean> {
+    if (!config.apiKey) {
+      throw new Error('API key is required');
+    }
+    return true;
+  }
+
+  getTokenCost(model: string): number {
+    // Token costs in USD per 1K tokens
+    const costs: Record<string, number> = {
+      'gpt-4-turbo-preview': 0.01,
+      'gpt-4': 0.03,
+      'gpt-3.5-turbo': 0.001
+    };
+
+    return costs[model] || costs['gpt-3.5-turbo'];
+  }
+
+  protected updateUsage(tokens: number, cost: number): void {
+    this.usage.totalTokens += tokens;
+    this.usage.totalCost += cost;
+  }
+}
+
+// Export singleton instance
+export const openai = new OpenAIProvider();
+
+// Helper functions
+export async function createPlan(prompt: string, options?: PromptOptions): Promise<string> {
+  const response = await openai.completePrompt(prompt, options);
+  return response.content;
+}

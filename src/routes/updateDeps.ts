@@ -3,8 +3,6 @@ import { AuthenticatedRequest } from '../middleware/auth';
 import { ProjectService } from '../services/project.service';
 import { jobQueueService } from '../services/JobQueueService';
 import { JobData } from '../types/jobs';
-import { openai } from '../api/providers/openaiProvider';
-import { modes } from '../config/roocodeModes';
 
 const router = Router();
 const projectService = new ProjectService();
@@ -19,55 +17,7 @@ interface UpdateDepsRequest extends AuthenticatedRequest {
 router.post('/:projectId/update-deps', async (req: UpdateDepsRequest, res: Response, next: NextFunction) => {
     try {
         const { projectId } = req.params;
-        const { immediate } = req.query;
 
-        if (immediate) {
-            // Handle immediate execution
-            let pkgJson;
-            try {
-                pkgJson = await projectService.readFile(projectId, 'package.json');
-            } catch (err) {
-                return res.status(404).json({
-                    status: 'error',
-                    code: 'PACKAGE_JSON_NOT_FOUND',
-                    message: 'Could not find package.json in the project'
-                });
-            }
-
-            const prompt = modes.dependencyUpdate.promptTemplate.replace(
-                '{{packageJson}}',
-                pkgJson
-            );
-
-            const completion = await openai.chat.completions.create({
-                model: modes.dependencyUpdate.model,
-                messages: [
-                    { role: 'system', content: 'You are a precise patch generator.' },
-                    { role: 'user', content: prompt }
-                ],
-                temperature: 0
-            });
-
-            const diff = completion.choices[0].message.content;
-
-            try {
-                await projectService.applyPatch(projectId, diff);
-                await projectService.commit(projectId, 'chore: update dependencies');
-                return res.status(200).json({
-                    status: 'success',
-                    data: { diff }
-                });
-            } catch (err) {
-                return res.status(400).json({
-                    status: 'error',
-                    code: 'PATCH_FAILED',
-                    message: 'Failed to apply dependency updates',
-                    details: err.message
-                });
-            }
-        }
-
-        // Queue for async processing
         const jobData: JobData = {
             projectId,
             mode: 'DependencyUpdate',
@@ -76,6 +26,7 @@ router.post('/:projectId/update-deps', async (req: UpdateDepsRequest, res: Respo
             }
         };
 
+        // Create a job for async processing
         const jobId = await jobQueueService.addJob('update-dependencies', jobData);
 
         res.json({

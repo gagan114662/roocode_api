@@ -1,184 +1,142 @@
 # RooCode API
 
-Multimodal AI coding assistant with advanced project understanding.
+RooCode is an AI-powered code generation and maintenance API that helps developers automate routine coding tasks.
+
+## Prerequisites
+
+- Node.js >= 18
+- Redis for job queue
+- prom-client for metrics (`npm install prom-client`)
+- bullmq for job queue (`npm install bullmq`)
+- OpenAI API key for LLM features
+
+## Setup
+
+1. Install dependencies:
+```bash
+npm install
+```
+
+2. Set up environment variables:
+```bash
+cp .env.example .env
+```
+
+Required variables:
+- `OPENAI_API_KEY`: Your OpenAI API key
+- `REDIS_URL`: Redis connection URL
+- `WORKSPACE_PATH`: Path to store project workspaces
+
+3. Start Redis:
+```bash
+docker run -d -p 6379:6379 redis:alpine
+```
+
+4. Run the API:
+```bash
+npm run start:api
+```
 
 ## Features
 
-### 🤖 Code Understanding
-- Semantic code search
-- Context-aware responses
-- Project-wide analysis
-- Test execution & validation
+### Hierarchical Project Planning
 
-### 🖼️ Image Support
-- Upload & analyze screenshots/diagrams
-- Visual code review
-- Combined text + image planning
-- Secure file management
+RooCode can generate and execute hierarchical project plans with parent-child task relationships:
 
-### 🔧 Built-in Tools
-- File operations
-- Test execution
-- Git operations
-- Memory management
-- Vector search
-
-### 🧠 Memory System
-- Project state tracking
-- Decision logging
-- Test coverage history
-- Implementation notes
-
-### 🔒 Security
-- Input validation
-- File type checking
-- Size limits (5MB)
-- Path sanitization
-- Secure file serving
-
-## API Routes
-
-### Planning
-```typescript
-POST /api/v1/projects/:id/plan
-{
-  prompt: string;
-  images?: Array<{name: string, path?: string, url?: string}>;
-  history?: ChatMessage[];
-  responseId?: string;
-}
+1. Generate a plan:
+```bash
+curl -X POST http://localhost:3000/projects/:id/plan \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Create a user authentication system"}'
 ```
 
-### Image Management
-```typescript
-POST /api/v1/projects/:id/upload-image  // multipart/form-data
-GET /api/v1/projects/:id/images
-DELETE /api/v1/projects/:id/images/:filename
+2. Execute a plan (asynchronously):
+```bash
+curl -X POST http://localhost:3000/projects/:id/execute-plan/:planId
 ```
 
-### Memory Operations
-```typescript
-GET /api/v1/projects/:id/memory/:section
-POST /api/v1/projects/:id/memory/:section
-{
-  entry: string;
-}
+3. Monitor execution progress:
+```bash
+curl http://localhost:3000/projects/:id/execute-plan/:planId/history
 ```
 
-### Code Search
-```typescript
-POST /api/v1/projects/:id/search
-{
-  query: string;
-  limit?: number;
-}
+4. Cancel plan execution:
+```bash
+curl -X DELETE http://localhost:3000/projects/:id/execute-plan/:planId
 ```
 
-### Function Discovery
-```typescript
-GET /api/v1/projects/:id/functions
-POST /api/v1/projects/:id/functions/validate
+Key capabilities:
+- Hierarchical task structure with parent-child relationships
+- Depth-first execution of tasks
+- Asynchronous execution with job queue
+- Execution history tracking
+- Task cancellation with cleanup
+- Timeout handling for long-running tasks
+
+### Dependency Updates
+
+The API can automatically update project dependencies using AI assistance:
+
+```bash
+curl -X POST http://localhost:3000/projects/:id/update-deps
 ```
+
+Monitor the job status:
+```bash
+curl http://localhost:3000/projects/:id/update-deps/:jobId
+```
+
+### Metrics
+
+Prometheus metrics are available at `/metrics`. Key metrics include:
+- Job queue statistics (enqueued, completed, failed)
+- Plan execution metrics (started, completed, failed, cancelled)
+- Task execution metrics (by owner mode, status)
+- Execution durations (histograms for plans and tasks)
+- Dependency update success rates
+- API latencies
+
+Health check endpoint with basic metrics:
+```bash
+curl http://localhost:3000/health
+```
+
+## Observability
+
+RooCode provides comprehensive observability features:
+
+1. Execution History
+   - Detailed task execution history with timestamps
+   - Success/failure status for each task
+   - Execution duration tracking
+   - Error messages for failed tasks
+
+2. Prometheus Metrics
+   - Counter metrics for execution events
+   - Histogram metrics for execution durations
+   - Labels for filtering by project, task type, and status
+
+3. Error Handling
+   - Standardized error responses with error codes
+   - Detailed error messages for debugging
+   - Proper HTTP status codes
 
 ## Development
 
-### Setup
+Run tests:
 ```bash
-# Install dependencies
-npm install
-
-# Build project
-npm run build
-
-# Run development server
-npm run dev
+npm run test:services        # Run service tests
+npm run test:api            # Run API tests
+npm run test:services:watch # Watch mode
 ```
 
-### Testing
-```bash
-# Run unit tests
-npm test
+## Contributing
 
-# Run E2E tests
-npm run test:e2e
-
-# Update snapshots
-npm test -- -u
-```
-
-### Environment Variables
-```bash
-# Required
-OPENAI_API_KEY=your_api_key
-OPENAI_ORG_ID=your_org_id
-
-# Optional with defaults
-OPENAI_CHAT_MODEL=gpt-4-turbo-preview
-OPENAI_VISION_MODEL=gpt-4-vision-preview
-```
-
-## Architecture
-
-```
-src/
-  ├── api/          # API layer & OpenAI integration
-  ├── routes/       # Route handlers & validation
-  ├── services/     # Core business logic
-  │   ├── llm/     # AI & function handlers
-  │   ├── project/ # Project & file management
-  │   ├── memory/  # State & history tracking
-  │   └── context/ # Vector search & embeddings
-  ├── schemas/     # Type definitions & validation
-  └── utils/       # Shared utilities
-```
-
-## Documentation
-
-- [Codebase Index](./codebase-index.md) - Detailed code structure
-- [Contributing Guide](./CONTRIBUTING.md) - Development guidelines
-- [API Reference](./docs/api.md) - Full API documentation
-- [Security](./SECURITY.md) - Security practices & reporting
+1. Create a feature branch
+2. Make changes and add tests
+3. Run all tests
+4. Submit a pull request
 
 ## License
 
-MIT License - see [LICENSE](LICENSE)
-
-## Output Validation
-
-The API now includes JSON schema validation for all LLM outputs to ensure deterministic and well-formed responses. Key features:
-
-### Schemas
-
-- `code.schema.json`: Validates code generation output
-- `function.schema.json`: Validates function call responses
-- `imageAnalysis.schema.json`: Validates image analysis results
-
-### Usage
-
-```typescript
-import { validateLLMResponse } from './utils/prompts/validation';
-
-// Validate LLM response against schema
-const result = await validateLLMResponse(llmOutput, 'code');
-
-// Automatic retries on invalid output
-const result = await validateWithRetry('code', generateCode);
-
-// Validation telemetry
-await telemetry.flush(); // View validation stats
-```
-
-### Error Handling
-
-- Validation errors include detailed path information
-- Automatic retry logic for invalid outputs
-- Telemetry tracking for validation success/failure rates
-
-### Adding New Schemas
-
-1. Add schema file in `src/schemas/`
-2. Update prompt templates in `src/utils/prompts/`
-3. Add types and validation tests
-4. Update telemetry tracking
-
-See documentation for more details.
+MIT

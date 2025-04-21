@@ -124,7 +124,7 @@ export type ModelInfo = z.infer<typeof modelInfoSchema>
 export const apiConfigMetaSchema = z.object({
 	id: z.string(),
 	name: z.string(),
-	apiProvider: providerNamesSchema.optional(),
+	apiProvider: z.enum(["anthropic", "openai", "ollama"]).optional(),
 })
 
 export type ApiConfigMeta = z.infer<typeof apiConfigMetaSchema>
@@ -301,7 +301,7 @@ type _AssertExperiments = AssertEqual<Equals<ExperimentId, Keys<Experiments>>>
  */
 
 export const providerSettingsSchema = z.object({
-	apiProvider: providerNamesSchema.optional(),
+	apiProvider: z.enum(["anthropic", "openai", "ollama"]).optional(),
 	// Anthropic
 	apiModelId: z.string().optional(),
 	apiKey: z.string().optional(),

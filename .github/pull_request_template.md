@@ -1,47 +1,35 @@
-# LLM Output Validation
+## Context
 
-This PR adds JSON schema validation for all LLM outputs to improve response determinism and reliability.
+<!-- Brief description of WHAT you’re doing and WHY. -->
 
-## Changes
+## Implementation
 
-### Core Features
-- ✅ JSON schema validation for all LLM outputs
-- ✅ Automatic retry mechanism for invalid outputs
-- ✅ Telemetry tracking for validation success/failure
-- ✅ Comprehensive error handling
+<!--
 
-### Schemas Added
-- `code.schema.json` - Code generation output
-- `function.schema.json` - Function call responses  
-- `imageAnalysis.schema.json` - Image analysis results
+Some description of HOW you achieved it. Perhaps give a high level description of the program flow. Did you need to refactor something? What tradeoffs did you take? Are there things in here which you’d particularly like people to pay close attention to?
 
-### Testing
-- Property-based tests with fast-check
-- Integration tests for validation chain
-- Error case coverage
-- Telemetry verification
-
-### Documentation
-- Updated README with validation guide
-- Added contributing guidelines
-- Added schema documentation
-- Added usage examples
-
-## Testing Performed
-- Unit tests: `npm test`
-- Property tests: `npm run test:property`
-- Integration tests: `npm run test:integration`
-- Telemetry validation
+-->
 
 ## Screenshots
-*Add validation error examples and telemetry dashboard*
 
-## Related Issues
-Closes #XXX - Add output validation
+| before | after |
+| ------ | ----- |
+|        |       |
 
-## Reviewers
-Please verify:
-- [ ] Schema completeness
-- [ ] Test coverage
-- [ ] Error handling
-- [ ] Documentation clarity
+## How to Test
+
+<!--
+
+A straightforward scenario of how to test your changes will help reviewers that are not familiar with the part of the code that you are changing but want to see it in action. This section can include a description or step-by-step instructions of how to get to the state of v2 that your change affects.
+
+A "How To Test" section can look something like this:
+
+- Sign in with a user with tracks
+- Activate `show_awesome_cat_gifs` feature (add `?feature.show_awesome_cat_gifs=1` to your URL)
+- You should see a GIF with cats dancing
+
+-->
+
+## Get in Touch
+
+<!-- We'd love to have a way to chat with you about your changes if necessary. If you're in the [Roo Code Discord](https://discord.gg/roocode), please share your handle here. -->

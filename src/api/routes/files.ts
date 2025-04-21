@@ -1,8 +1,11 @@
 import { Router, Response, NextFunction } from 'express';
 import { RequestHandler, Query as ExpressQuery } from 'express-serve-static-core';
 import { AuthenticatedRequest, authorize } from '../middleware/auth';
+import { FileSystemService } from '../../services/filesystem';
+import * as path from 'path';
 
 const router = Router();
+const fileSystem = new FileSystemService(process.cwd());
 
 interface FileOperationBody {
     path: string;
@@ -29,10 +32,10 @@ const listFiles: RequestHandler<{}, any, any, ListFilesQuery> = async (
     res: Response,
     next: NextFunction
 ): Promise<void> => {
-    const path = req.query.path;
+    const dirPath = req.query.path;
     const recursive = req.query.recursive === 'true';
 
-    if (!path) {
+    if (!dirPath) {
         res.status(400).json({
             status: 'error',
             message: 'Path parameter is required'
@@ -41,18 +44,12 @@ const listFiles: RequestHandler<{}, any, any, ListFilesQuery> = async (
     }
 
     try {
-        // TODO: Implement actual file listing by integrating with Roo Code's file system
+        const files = await fileSystem.listFiles(dirPath as string, recursive);
         res.json({
             status: 'success',
             data: {
-                path,
-                files: [
-                    {
-                        name: 'example.ts',
-                        type: 'file',
-                        size: 1024
-                    }
-                ],
+                path: dirPath,
+                files,
                 recursive
             }
         });
@@ -67,9 +64,9 @@ const readFile: RequestHandler = async (
     res: Response,
     next: NextFunction
 ): Promise<void> => {
-    const { path, startLine, endLine } = req.body;
+    const { path: filePath, startLine, endLine } = req.body;
 
-    if (!path) {
+    if (!filePath) {
         res.status(400).json({
             status: 'error',
             message: 'Path parameter is required'
@@ -78,12 +75,12 @@ const readFile: RequestHandler = async (
     }
 
     try {
-        // TODO: Implement actual file reading by integrating with Roo Code's file system
+        const content = await fileSystem.readFile(filePath, startLine, endLine);
         res.json({
             status: 'success',
             data: {
-                path,
-                content: 'File content would go here',
+                path: filePath,
+                content,
                 startLine,
                 endLine
             }
@@ -99,9 +96,9 @@ const writeFile: RequestHandler = async (
     res: Response,
     next: NextFunction
 ): Promise<void> => {
-    const { path, content, lineCount } = req.body;
+    const { path: filePath, content, lineCount } = req.body;
 
-    if (!path || !content) {
+    if (!filePath || !content) {
         res.status(400).json({
             status: 'error',
             message: 'Path and content parameters are required'
@@ -110,12 +107,12 @@ const writeFile: RequestHandler = async (
     }
 
     try {
-        // TODO: Implement actual file writing by integrating with Roo Code's file system
+        await fileSystem.writeFile(filePath, content);
         res.json({
             status: 'success',
             data: {
-                path,
-                lineCount,
+                path: filePath,
+                lineCount: content.split('\n').length,
                 message: 'File written successfully'
             }
         });
@@ -130,9 +127,9 @@ const searchFiles: RequestHandler = async (
     res: Response,
     next: NextFunction
 ): Promise<void> => {
-    const { path, regex, filePattern } = req.body;
+    const { path: dirPath, regex, filePattern } = req.body;
 
-    if (!path || !regex) {
+    if (!dirPath || !regex) {
         res.status(400).json({
             status: 'error',
             message: 'Path and regex parameters are required'
@@ -141,20 +138,14 @@ const searchFiles: RequestHandler = async (
     }
 
     try {
-        // TODO: Implement actual file searching by integrating with Roo Code's file system
+        const matches = await fileSystem.searchFiles(dirPath, regex, filePattern);
         res.json({
             status: 'success',
             data: {
-                path,
+                path: dirPath,
                 regex,
                 filePattern,
-                matches: [
-                    {
-                        file: 'example.ts',
-                        line: 10,
-                        content: 'Matching content would go here'
-                    }
-                ]
+                matches
             }
         });
     } catch (error) {

@@ -1,95 +1,75 @@
-/** @typedef {import('../types/intent').IntentMode} IntentMode */
+/**
+ * RooCode Mode Configuration
+ */
 
-const roocodeModes = {
+import type { Request, Response, NextFunction } from 'express';
+
+export interface ModeConfig {
+  model: string;
+  promptTemplate: string;
+  description?: string;
+}
+
+export interface RooModeHandler {
+  (req: Request, res: Response, next: NextFunction): Promise<void>;
+}
+
+export const modes: Record<string, ModeConfig> = {
   scaffold: {
-    model: 'code-davinci-002',
-    systemMessage: 'You are an expert software architect. Return project scaffolds using tree structure with ├── and └── prefixes.',
-    promptTemplate: `Here's an example scaffold:
-Input: "Create a TypeScript Express API"
-Output:
-├── src/
-│   ├── controllers/
-│   │   └── index.ts
-│   ├── routes/
-│   │   └── api.ts
-│   └── app.ts
-└── package.json
+    model: 'o4-mini',
+    description: 'Generate project scaffolding and boilerplate code',
+    promptTemplate: `
+    You are the Scaffold agent. When given a project description, output only the file structure and basic boilerplate code (package.json, tsconfig.json, src/index.ts, README.md).
 
-Now create a scaffold for: {{prompt}}`
+    Description: {{description}}
+    `
   },
 
   refactor: {
-    model: 'code-davinci-002',
-    systemMessage: 'You are a code refactoring expert. Always return solutions in unified diff format.',
-    promptTemplate: `Let's think step by step:
-1. Analyze code structure
-2. Identify improvements
-3. Apply patterns
-4. Add error handling
+    model: 'o4-mini',
+    description: 'Refactor existing code for better maintainability',
+    promptTemplate: `
+    You are the Refactor agent. Given existing code, apply best-practice refactorings for readability and maintainability.
 
-Example:
-Input: Convert to async/await
-Code: function getData() { return fetch(url); }
-Output: 
-diff --git a/src/api.ts b/src/api.ts
---- a/src/api.ts
-+++ b/src/api.ts
-@@ -1,1 +1,7 @@
--function getData() { return fetch(url); }
-+async function getData() {
-+  try {
-+    return await fetch(url);
-+  } catch (err) {
-+    throw new Error(\`Failed to fetch data: \${err.message}\`);
-+  }
-+}
-
-Now refactor: {{code}}`
+    Code Context: {{context}}
+    `
   },
 
   testgen: {
-    model: 'code-davinci-002',
-    systemMessage: 'You are a testing expert. Always return valid Jest tests with describe/it blocks.',
-    promptTemplate: `Example test:
-describe('sum', () => {
-  it('adds numbers correctly', () => {
-    expect(sum(1, 2)).toBe(3);
-  });
-});
-
-Generate tests for: {{code}}`
+    model: 'o4-mini',
+    description: 'Generate unit tests for code',
+    promptTemplate: `
+    You are the TestGen agent. Generate unit tests for the following code snippet:
+    {{code}}
+    `
   },
 
   cicd: {
-    model: 'code-davinci-002', 
-    systemMessage: 'You are a CI/CD expert. Return valid GitHub Actions YAML config.',
-    promptTemplate: `Example workflow:
-name: CI
-on: [push]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - run: npm test
+    model: 'o4-mini',
+    description: 'Set up CI/CD pipelines',
+    promptTemplate: `
+    You are the CICD agent. Create a CI/CD pipeline config (GitHub Actions YAML) that lints, builds, tests, and deploys the project.
 
-Create workflow for: {{prompt}}`
+    Project: {{description}}
+    `
   },
 
   docgen: {
-    model: 'code-davinci-002',
-    systemMessage: 'You are a documentation expert. Return Markdown with proper heading hierarchy.',
-    promptTemplate: `Example docs:
-# API Endpoint
-## POST /users
-Creates a new user.
-### Request
-\`\`\`json
-{ "name": "string" }
-\`\`\`
-
-Document: {{prompt}}`
+    model: 'o4-mini',
+    description: 'Generate project documentation',
+    promptTemplate: `
+    You are the DocGen agent. Generate detailed Markdown documentation (README, API docs) for the code in this project.
+    
+    Code Context: {{context}}
+    `
   }
 };
 
-module.exports = roocodeModes;
+// Export mode names for type safety
+export type RooMode = keyof typeof modes;
+export const modeNames = Object.keys(modes) as RooMode[];
+
+// Function to validate mode name
+export function isValidMode(mode: string): mode is RooMode {
+  return modeNames.includes(mode as RooMode);
+}

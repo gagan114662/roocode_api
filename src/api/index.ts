@@ -1,42 +1,33 @@
 import express from 'express';
-import tasksRouter from '../routes/tasks';
-import forecastRouter from '../routes/forecastCost';
-import modelRouter from '../routes/modelRoute';
-import memoryRouter from '../routes/memory';
-import searchRouter from '../routes/search';
-import planRouter from '../routes/plan';
-import uploadRouter from '../routes/upload';
+import cors from 'cors';
+import helmet from 'helmet';
+import { projectsRouter } from '../routes/projects';
+import { applyCustomModes } from '../config/applyModes';
+import { modes } from '../config/roocodeModes';
 
+// Create Express app
 const app = express();
+
+// Basic middleware
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cors());
+app.use(helmet());
 
-// Mount routes
-app.use('/api/v1/tasks', tasksRouter);
-app.use('/api/v1', forecastRouter);
-app.use('/api/v1', modelRouter);
-app.use('/api/v1', memoryRouter);
-app.use('/api/v1', searchRouter);
-app.use('/api/v1', planRouter);
-app.use('/api/v1', uploadRouter);
+// Apply RooCode modes
+applyCustomModes(app, modes);
 
-// Configure static file serving for uploaded images
-app.use('/api/v1/public/uploads', express.static('workspaces', {
-  setHeaders: (res, path) => {
-    // Only allow images
-    if (!path.match(/\.(jpg|jpeg|png|gif|svg)$/i)) {
-      return res.status(403).end();
-    }
-    res.setHeader('Cache-Control', 'public, max-age=86400'); // 24h cache
-  }
-}));
+// Routes
+app.use('/projects', projectsRouter);
 
-// Error handling middleware
-app.use((err: any, req: any, res: any, next: any) => {
-  console.error(err.stack);
+// Error handling
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Error:', err);
   res.status(err.status || 500).json({
-    error: err.message || 'Internal server error',
-    details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    status: 'error',
+    message: err.message || 'Internal Server Error'
   });
 });
 
+// Export app
 export default app;

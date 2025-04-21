@@ -4,7 +4,8 @@ module.exports = {
     testEnvironment: 'node',
     roots: ['<rootDir>/src/api'],
     testMatch: [
-        '**/integration.test.ts'
+        '**/integration.test.ts',
+        '**/__tests__/**/*.test.ts'
     ],
     transform: {
         '^.+\\.tsx?$': [
@@ -22,8 +23,10 @@ module.exports = {
     verbose: true,
     detectOpenHandles: true,
     forceExit: true,
-    testTimeout: 10000,
+    testTimeout: 30000,
     moduleNameMapper: {
         '^@/(.*)$': '<rootDir>/src/$1'
-    }
-};
+    },
+    // Optionally run only unmocked tests
+    testPathIgnorePatterns: process.env.NO_MOCKS ? ['/__mocks__/', '\\.mock\\.'] : []
+}

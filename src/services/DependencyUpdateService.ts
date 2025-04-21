@@ -1,7 +1,12 @@
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
+import OpenAI from 'openai';
 import { ProjectService } from './project.service';
 const modes = require('../config/roocodeModes');
+
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY
+});
 
 export class DependencyUpdateService {
     constructor(
@@ -28,19 +33,61 @@ export class DependencyUpdateService {
             const dependencies = JSON.parse(packageJson);
             const changes: Record<string, { from: string; to: string }> = {};
 
-            // Example update logic (replace with actual LLM call)
-            if (dependencies.dependencies) {
-                Object.entries(dependencies.dependencies).forEach(([pkg, version]) => {
-                    if (typeof version === 'string' && version.startsWith('^')) {
+            // Generate AI-assisted dependency updates
+            const aiPrompt = modes.DependencyUpdate.promptTemplate.replace(
+                '{{packageJson}}',
+                JSON.stringify(dependencies, null, 2)
+            );
+
+            const completion = await openai.chat.completions.create({
+                model: modes.DependencyUpdate.model,
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'You are a dependency maintenance expert. Analyze package.json and suggest appropriate semver-compatible updates.'
+                    },
+                    {
+                        role: 'user',
+                        content: aiPrompt
+                    }
+                ],
+                temperature: 0.1
+            });
+
+            // Parse and validate LLM response
+            const content = completion.choices[0].message.content;
+            if (!content) {
+                throw new Error('LLM returned empty response');
+            }
+
+            let suggestedUpdates;
+            try {
+                suggestedUpdates = JSON.parse(content);
+            } catch (error) {
+                console.error('Failed to parse LLM response:', content);
+                throw new Error('Invalid JSON response from LLM');
+            }
+
+            if (!suggestedUpdates || typeof suggestedUpdates !== 'object') {
+                throw new Error('Invalid updates format from LLM');
+            }
+
+            // Process suggested updates
+            let hasUpdates = false;
+            if (dependencies.dependencies && suggestedUpdates.dependencies) {
+                Object.entries(suggestedUpdates.dependencies).forEach(([pkg, version]) => {
+                    const currentVersion = dependencies.dependencies[pkg];
+                    if (currentVersion && currentVersion !== version) {
                         changes[pkg] = {
-                            from: version,
-                            to: version.replace('^', '')
+                            from: currentVersion,
+                            to: version as string
                         };
+                        hasUpdates = true;
                     }
                 });
             }
 
-            if (Object.keys(changes).length === 0) {
+            if (!hasUpdates) {
                 return { updated: false };
             }
 
