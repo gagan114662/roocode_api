@@ -142,3 +142,43 @@ src/
 ## License
 
 MIT License - see [LICENSE](LICENSE)
+
+## Output Validation
+
+The API now includes JSON schema validation for all LLM outputs to ensure deterministic and well-formed responses. Key features:
+
+### Schemas
+
+- `code.schema.json`: Validates code generation output
+- `function.schema.json`: Validates function call responses
+- `imageAnalysis.schema.json`: Validates image analysis results
+
+### Usage
+
+```typescript
+import { validateLLMResponse } from './utils/prompts/validation';
+
+// Validate LLM response against schema
+const result = await validateLLMResponse(llmOutput, 'code');
+
+// Automatic retries on invalid output
+const result = await validateWithRetry('code', generateCode);
+
+// Validation telemetry
+await telemetry.flush(); // View validation stats
+```
+
+### Error Handling
+
+- Validation errors include detailed path information
+- Automatic retry logic for invalid outputs
+- Telemetry tracking for validation success/failure rates
+
+### Adding New Schemas
+
+1. Add schema file in `src/schemas/`
+2. Update prompt templates in `src/utils/prompts/`
+3. Add types and validation tests
+4. Update telemetry tracking
+
+See documentation for more details.
