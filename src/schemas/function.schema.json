@@ -1,31 +1,16 @@
 {
-  "$id": "https://roocode.ai/schemas/function.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
-  "required": ["success", "result"],
+  "required": ["success"],
   "properties": {
-    "success": { "type": "boolean" },
-    "result": {
-      "oneOf": [
-        {
-          "type": "object",
-          "required": ["output"],
-          "properties": {
-            "output": { "type": "string" },
-            "details": { "type": "object" }
-          }
-        },
-        {
-          "type": "null"
-        }
-      ]
+    "success": {
+      "type": "boolean"
+    },
+    "data": {
+      "type": "object"
     },
     "error": {
-      "type": "object",
-      "properties": {
-        "code": { "type": "string" },
-        "message": { "type": "string" },
-        "details": { "type": "object" }
-      }
+      "type": "string"
     }
   }
 }
