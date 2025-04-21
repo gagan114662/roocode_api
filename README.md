@@ -51,7 +51,7 @@ POST /api/v1/projects/:id/plan
 
 ### Image Management
 ```typescript
-POST /api/v1/projects/:id/upload-image
+POST /api/v1/projects/:id/upload-image  // multipart/form-data
 GET /api/v1/projects/:id/images
 DELETE /api/v1/projects/:id/images/:filename
 ```
@@ -60,9 +60,12 @@ DELETE /api/v1/projects/:id/images/:filename
 ```typescript
 GET /api/v1/projects/:id/memory/:section
 POST /api/v1/projects/:id/memory/:section
+{
+  entry: string;
+}
 ```
 
-### Search
+### Code Search
 ```typescript
 POST /api/v1/projects/:id/search
 {
@@ -71,24 +74,45 @@ POST /api/v1/projects/:id/search
 }
 ```
 
+### Function Discovery
+```typescript
+GET /api/v1/projects/:id/functions
+POST /api/v1/projects/:id/functions/validate
+```
+
 ## Development
 
 ### Setup
 ```bash
+# Install dependencies
 npm install
+
+# Build project
 npm run build
+
+# Run development server
+npm run dev
 ```
 
 ### Testing
 ```bash
+# Run unit tests
 npm test
+
+# Run E2E tests
 npm run test:e2e
+
+# Update snapshots
+npm test -- -u
 ```
 
 ### Environment Variables
-```
-OPENAI_API_KEY=
-OPENAI_ORG_ID=
+```bash
+# Required
+OPENAI_API_KEY=your_api_key
+OPENAI_ORG_ID=your_org_id
+
+# Optional with defaults
 OPENAI_CHAT_MODEL=gpt-4-turbo-preview
 OPENAI_VISION_MODEL=gpt-4-vision-preview
 ```
@@ -97,20 +121,23 @@ OPENAI_VISION_MODEL=gpt-4-vision-preview
 
 ```
 src/
-  ├── api/          # API layer
-  ├── routes/       # Route handlers
-  ├── services/     # Core services
-  │   ├── llm/     # LLM integration
-  │   ├── project/ # Project management
-  │   ├── memory/  # State management
-  │   └── context/ # Vector search
-  ├── schemas/     # Type definitions
+  ├── api/          # API layer & OpenAI integration
+  ├── routes/       # Route handlers & validation
+  ├── services/     # Core business logic
+  │   ├── llm/     # AI & function handlers
+  │   ├── project/ # Project & file management
+  │   ├── memory/  # State & history tracking
+  │   └── context/ # Vector search & embeddings
+  ├── schemas/     # Type definitions & validation
   └── utils/       # Shared utilities
 ```
 
-## Contributing
+## Documentation
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+- [Codebase Index](./codebase-index.md) - Detailed code structure
+- [Contributing Guide](./CONTRIBUTING.md) - Development guidelines
+- [API Reference](./docs/api.md) - Full API documentation
+- [Security](./SECURITY.md) - Security practices & reporting
 
 ## License
 

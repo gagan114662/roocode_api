@@ -64,4 +64,3 @@
 - Docker configuration
 - CI/CD workflows
 - Monitoring setup
-
