@@ -1,0 +1,42 @@
+{
+  "$id": "https://roocode.ai/schemas/imageAnalysis.schema.json",
+  "type": "object",
+  "required": ["description", "elements"],
+  "properties": {
+    "description": { "type": "string" },
+    "elements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "content", "confidence"],
+        "properties": {
+          "type": { 
+            "type": "string",
+            "enum": ["text", "code", "ui", "error", "other"]
+          },
+          "content": { "type": "string" },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "location": {
+            "type": "object",
+            "properties": {
+              "x": { "type": "number" },
+              "y": { "type": "number" },
+              "width": { "type": "number" },
+              "height": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

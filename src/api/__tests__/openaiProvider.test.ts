@@ -1,192 +1,112 @@
-import { describe, it, expect, jest, beforeEach } from '@jest/globals';
-import { openai, chatWithImages, chatWithFunctions, chatWithAll } from '../openaiProvider';
+import { OpenAIProvider } from '../openaiProvider';
+import { ValidationError } from '../../utils/validator';
 import fs from 'fs/promises';
-import path from 'path';
 
-jest.mock('openai', () => ({
-  OpenAI: jest.fn().mockImplementation(() => ({
-    chat: {
-      completions: {
-        create: jest.fn()
-      }
-    }
-  }))
-}));
+jest.mock('openai');
+jest.mock('fs/promises');
 
-describe('OpenAI Provider', () => {
-  const mockImage = {
-    name: 'test.jpg',
-    data: Buffer.from('test image data')
-  };
-
-  const mockResponse = {
-    id: 'response-1',
-    choices: [{
-      message: {
-        role: 'assistant',
-        content: 'Test response'
-      }
-    }],
-    usage: {
-      total_tokens: 100
-    },
-    model: 'gpt-4-vision-preview'
-  };
+describe('OpenAIProvider', () => {
+  let provider: OpenAIProvider;
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    (openai.chat.completions.create as jest.Mock).mockResolvedValue(mockResponse);
+    provider = new OpenAIProvider();
+    (fs.readFile as jest.Mock).mockResolvedValue(Buffer.from('fake-image'));
   });
 
   describe('chatWithImages', () => {
-    it('processes images with base64 data', async () => {
-      const messages = [{ role: 'user', content: 'Analyze this image' }];
-      
-      const result = await chatWithImages(messages, [mockImage]);
-
-      expect(openai.chat.completions.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          messages: expect.arrayContaining([
-            expect.objectContaining({
-              content: expect.arrayContaining([
-                expect.objectContaining({
-                  type: 'image_url',
-                  image_url: expect.objectContaining({
-                    url: expect.stringContaining('base64')
-                  })
-                })
-              ])
-            })
-          ])
-        })
-      );
-      expect(result.message).toBe(mockResponse.choices[0].message);
-    });
-
-    it('processes images with URLs', async () => {
-      const messages = [{ role: 'user', content: 'Analyze this image' }];
-      const imageUrl = 'https://example.com/test.jpg';
-      
-      const result = await chatWithImages(messages, [{
-        name: 'test.jpg',
-        url: imageUrl
-      }]);
-
-      expect(openai.chat.completions.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          messages: expect.arrayContaining([
-            expect.objectContaining({
-              content: expect.arrayContaining([
-                expect.objectContaining({
-                  type: 'image_url',
-                  image_url: imageUrl
-                })
-              ])
-            })
-          ])
-        })
-      );
-    });
-  });
-
-  describe('chatWithAll', () => {
-    const mockFunctionResponse = {
-      ...mockResponse,
-      choices: [{
-        message: {
-          role: 'assistant',
-          function_call: {
-            name: 'testFunction',
-            arguments: '{"arg": "value"}'
-          }
+    it('validates and returns correct image analysis', async () => {
+      const mockResponse = {
+        data: {
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                description: 'Test image',
+                elements: [{
+                  type: 'text',
+                  content: 'Sample text',
+                  confidence: 0.95
+                }]
+              })
+            }
+          }]
         }
-      }]
-    };
+      };
 
-    it('combines image and function analysis', async () => {
-      (openai.chat.completions.create as jest.Mock)
-        .mockResolvedValueOnce(mockResponse)
-        .mockResolvedValueOnce(mockFunctionResponse);
+      (provider['client'].createChatCompletion as jest.Mock)
+        .mockResolvedValue(mockResponse);
 
-      const messages = [{ role: 'user', content: 'Analyze and act on this image' }];
-      const functions = [{
-        name: 'testFunction',
-        description: 'Test function',
-        parameters: {
-          type: 'object',
-          properties: {
-            arg: { type: 'string' }
-          }
+      const result = await provider.chatWithImages(
+        'Analyze image',
+        [{ path: 'test.jpg', type: 'image/jpeg' }]
+      );
+
+      expect(result.description).toBe('Test image');
+      expect(result.elements).toHaveLength(1);
+    });
+
+    it('retries on invalid response', async () => {
+      const invalidResponse = {
+        data: {
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                description: 'Test image'
+                // Missing required elements array
+              })
+            }
+          }]
         }
-      }];
+      };
 
-      const result = await chatWithAll(messages, [mockImage], { functions });
+      const validResponse = {
+        data: {
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                description: 'Test image',
+                elements: []
+              })
+            }
+          }]
+        }
+      };
 
-      // Should have called create twice - once for vision, once for function
-      expect(openai.chat.completions.create).toHaveBeenCalledTimes(2);
-      
-      // Should include both stages in result
-      expect(result.stages).toEqual({
-        imageAnalysis: expect.objectContaining({
-          message: mockResponse.choices[0].message
-        }),
-        functionCalls: expect.objectContaining({
-          message: mockFunctionResponse.choices[0].message
-        })
-      });
-    });
+      (provider['client'].createChatCompletion as jest.Mock)
+        .mockResolvedValueOnce(invalidResponse)
+        .mockResolvedValueOnce(validResponse);
 
-    it('skips function calls when not provided', async () => {
-      const messages = [{ role: 'user', content: 'Just analyze this image' }];
-      
-      const result = await chatWithAll(messages, [mockImage]);
-
-      expect(openai.chat.completions.create).toHaveBeenCalledTimes(1);
-      expect(result.stages).toBeUndefined();
-    });
-
-    it('handles errors gracefully', async () => {
-      (openai.chat.completions.create as jest.Mock)
-        .mockRejectedValueOnce(new Error('Vision API error'));
-
-      const messages = [{ role: 'user', content: 'Analyze this image' }];
-      
-      await expect(chatWithAll(messages, [mockImage]))
-        .rejects.toThrow('Vision API error');
-    });
-  });
-
-  describe('configuration', () => {
-    it('respects custom model settings', async () => {
-      const customModel = 'custom-vision-model';
-      
-      await chatWithImages([], [mockImage], { model: customModel });
-
-      expect(openai.chat.completions.create).toHaveBeenCalledWith(
-        expect.objectContaining({ model: customModel })
+      const result = await provider.chatWithImages(
+        'Analyze image',
+        [{ path: 'test.jpg', type: 'image/jpeg' }]
       );
+
+      expect(result.description).toBe('Test image');
+      expect(provider['client'].createChatCompletion).toHaveBeenCalledTimes(2);
     });
 
-    it('respects response_id for threading', async () => {
-      const responseId = 'prev-response';
-      
-      await chatWithImages([], [mockImage], { response_id: responseId });
+    it('throws after max retries', async () => {
+      const invalidResponse = {
+        data: {
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                description: 'Test image'
+                // Always missing elements
+              })
+            }
+          }]
+        }
+      };
 
-      expect(openai.chat.completions.create).toHaveBeenCalledWith(
-        expect.objectContaining({ response_id: responseId })
-      );
-    });
+      (provider['client'].createChatCompletion as jest.Mock)
+        .mockResolvedValue(invalidResponse);
 
-    it('applies default configurations', async () => {
-      await chatWithImages([], [mockImage]);
-
-      expect(openai.chat.completions.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          model: expect.any(String),
-          temperature: 0,
-          max_tokens: expect.any(Number)
-        })
-      );
+      await expect(
+        provider.chatWithImages(
+          'Analyze image',
+          [{ path: 'test.jpg', type: 'image/jpeg' }]
+        )
+      ).rejects.toThrow('Failed to generate valid output after 3 attempts');
     });
   });
 });
