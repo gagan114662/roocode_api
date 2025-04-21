@@ -1,0 +1,39 @@
+{
+  "$id": "https://roocode.ai/schemas/updateDeps.schema.json",
+  "type": "object",
+  "required": ["updates", "summary"],
+  "properties": {
+    "updates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["package", "from", "to", "type"],
+        "properties": {
+          "package": { "type": "string" },
+          "from": { "type": "string" },
+          "to": { "type": "string" },
+          "type": { 
+            "type": "string",
+            "enum": ["major", "minor", "patch", "breaking"]
+          },
+          "changes": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["safe", "breaking"],
+      "properties": {
+        "safe": { "type": "number" },
+        "breaking": { "type": "number" },
+        "recommendations": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

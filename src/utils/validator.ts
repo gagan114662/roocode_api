@@ -2,6 +2,7 @@ import Ajv, { ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
 import fs from 'fs/promises';
 import path from 'path';
+import { telemetry } from '../services/telemetry/TelemetryService';
 
 const MAX_RETRIES = 3;
 const ajv = new Ajv({ allErrors: true, strict: true });
@@ -36,8 +37,20 @@ export async function validate<T>(schemaName: string, data: unknown): Promise<T>
   const validator = await getValidator(schemaName);
   
   if (!validator(data)) {
+    telemetry.logValidation({
+      schema: schemaName,
+      success: false,
+      error: validator.errors?.map(e => `${e.instancePath} ${e.message}`).join('; '),
+      attempts: 1
+    });
     throw new ValidationError(schemaName, validator.errors || [], data);
   }
+
+  telemetry.logValidation({
+    schema: schemaName,
+    success: true,
+    attempts: 1
+  });
   
   return data as T;
 }
@@ -48,11 +61,22 @@ export async function validateWithRetry<T>(
   maxRetries = MAX_RETRIES
 ): Promise<T> {
   let lastError: Error | null = null;
+  let attempts = 0;
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    attempts++;
     try {
       const data = await generateData();
-      return await validate<T>(schemaName, data);
+      const result = await validate<T>(schemaName, data);
+
+      // Log final success
+      telemetry.logValidation({
+        schema: schemaName,
+        success: true,
+        attempts
+      });
+
+      return result;
     } catch (error) {
       lastError = error as Error;
       console.warn(
@@ -62,6 +86,14 @@ export async function validateWithRetry<T>(
     }
   }
   
+  // Log final failure
+  telemetry.logValidation({
+    schema: schemaName,
+    success: false,
+    error: lastError?.message,
+    attempts
+  });
+
   throw new Error(
     `Failed to generate valid output after ${maxRetries} attempts. Last error: ${lastError?.message}`
   );
