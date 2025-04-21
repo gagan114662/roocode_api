@@ -1,12 +1,14 @@
 import { exec } from 'child_process';
-import { promisify } from 'util';
 import { validateWithRetry } from '../../utils/validator';
 import { ProjectService } from '../project/ProjectService';
 import { MemoryService } from '../memory/MemoryService';
 import { VectorContextService } from '../context/VectorContextService';
-import { CodeGeneration } from '../../types/code';
 
-const execAsync = promisify(exec);
+export interface CommandResult<T = unknown> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
 
 export class FunctionHandler {
   constructor(
@@ -15,66 +17,40 @@ export class FunctionHandler {
     private vectorService: VectorContextService
   ) {}
 
-  async generateCode(params: { 
-    projectId: string;
-    prompt: string;
-    language?: string;
-  }): Promise<CodeGeneration> {
-    const generateResponse = async () => {
-      // Existing LLM call to generate code
-      const response = await this.callLLM(params.prompt, {
-        temperature: 0,
-        functions: [{
-          name: 'writeCode',
-          parameters: {
-            type: 'object',
-            properties: {
-              content: { type: 'string' },
-              language: { type: 'string' },
-              metadata: {
-                type: 'object',
-                properties: {
-                  filename: { type: 'string' },
-                  description: { type: 'string' },
-                  dependencies: { type: 'array', items: { type: 'string' } }
-                }
-              }
+  async execute<T>(command: string): Promise<CommandResult<T>> {
+    try {
+      const result = await validateWithRetry<T>('function', async () => {
+        return new Promise((resolve, reject) => {
+          exec(command, (error, stdout) => {
+            if (error) reject(error);
+            try {
+              resolve(JSON.parse(stdout));
+            } catch (e) {
+              reject(new Error('Invalid JSON output'));
             }
-          }
-        }]
+          });
+        });
       });
-
-      return JSON.parse(response);
-    };
-
-    // Validate and retry if needed
-    const result = await validateWithRetry<CodeGeneration>(
-      'code',
-      generateResponse
-    );
-
-    // Log the successful generation
-    await this.memoryService.appendToSection(
-      params.projectId,
-      'implementationNotes',
-      `Generated ${result.metadata.filename}: ${result.metadata.description}`
-    );
-
-    return result;
+      return { success: true, data: result };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
   }
 
-  // ... existing methods ...
-
-  private async callLLM(prompt: string, options: any): Promise<string> {
-    // Mock for now - replace with actual LLM call
-    return JSON.stringify({
-      content: "console.log('Hello world')",
-      language: "typescript",
-      metadata: {
-        filename: "index.ts",
-        description: "Example code",
-        dependencies: []
-      }
-    });
+  async runTests(params: { projectId: string; testPattern?: string }) {
+    try {
+      const result = await this.execute(`npm test ${params.testPattern || ''}`);
+      await this.memoryService.appendToSection(
+        params.projectId,
+        'testCoverage',
+        `Tests ${result.success ? 'succeeded' : 'failed'}`
+      );
+      return result;
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
   }
 }
