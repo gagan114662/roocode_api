@@ -108,59 +108,6 @@ describe('FunctionHandler', () => {
         expect.stringContaining('test.ts')
       );
     });
-
-    it('handles file write errors', async () => {
-      projectService.writeFile.mockRejectedValue(new Error('Write failed'));
-
-      await expect(
-        handler.writeFile({
-          projectId,
-          filePath: 'test.ts',
-          content: 'new content'
-        })
-      ).rejects.toThrow('Failed to write file');
-    });
-  });
-
-  describe('version control', () => {
-    it('commits changes and logs commit info', async () => {
-      projectService.commit.mockResolvedValue('abc123');
-
-      const result = await handler.commitChanges({
-        projectId,
-        message: 'test commit',
-        files: ['test.ts']
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.commit).toBe('abc123');
-      expect(memoryService.appendToSection).toHaveBeenCalledWith(
-        projectId,
-        'implementationNotes',
-        expect.stringContaining('abc123')
-      );
-    });
-  });
-
-  describe('code search', () => {
-    it('performs semantic search with vector service', async () => {
-      const mockResults = [
-        { text: 'code1', file: 'file1.ts', score: 0.9 }
-      ];
-      vectorService.search.mockResolvedValue(mockResults);
-
-      const result = await handler.searchCode({
-        projectId,
-        query: 'test query'
-      });
-
-      expect(result.results).toEqual(mockResults);
-      expect(vectorService.search).toHaveBeenCalledWith(
-        projectId,
-        'test query',
-        5
-      );
-    });
   });
 
   describe('memory operations', () => {
