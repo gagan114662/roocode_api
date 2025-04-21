@@ -1,0 +1,69 @@
+name: Multimodal Tests
+
+on:
+  push:
+    branches: [ main, feat/multimodal-support ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    
+    env:
+      NODE_ENV: test
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_ORG_ID: ${{ secrets.OPENAI_ORG_ID }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test -- --testPathPattern="src/services/llm/__tests__"
+
+      - name: Run e2e tests
+        run: |
+          npm run test:e2e -- --grep @fast
+          npm run test:e2e -- --grep @slow --runInBand
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: |
+            test-results
+            coverage
+          retention-days: 30
+
+      - name: Report Status
+        if: always()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const run_id = context.runId;
+            const { data: check_run } = await github.rest.checks.get({
+              owner,
+              repo,
+              check_run_id: run_id
+            });
+            
+            if (check_run.conclusion === 'failure') {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: context.issue.number,
+                body: `⚠️ Tests failed. [View details](${check_run.html_url})`
+              });
+            }

@@ -12,7 +12,10 @@
     "build:api": "tsc -p src/api/tsconfig.json",
     "lint": "eslint src --ext .ts,.tsx",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
-    "test:e2e": "JEST_JUNIT_OUTPUT_DIR=test-results/e2e jest --config jest.config.e2e.js"
+    "test:e2e": "JEST_JUNIT_OUTPUT_DIR=test-results/e2e jest --config jest.config.e2e.js",
+    "test:ci": "jest --config jest.config.ci.js",
+    "test:e2e:fast": "jest --config jest.config.ci.js --testPathPattern=e2e --testNamePattern=@fast",
+    "test:e2e:full": "jest --config jest.config.ci.js --testPathPattern=e2e"
   },
   "repository": {
     "type": "git",
