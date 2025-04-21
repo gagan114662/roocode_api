@@ -1,88 +1,98 @@
-import { Router } from 'express';
-import { PlannerAgent } from '../services/llm/PlannerAgent';
-import { ProjectService } from '../services/project/ProjectService';
-import { MemoryService } from '../services/memory/MemoryService';
-import { VectorContextService } from '../services/context/VectorContextService';
+import { Router, Response, NextFunction } from 'express';
+import { AuthenticatedRequest } from '../middleware/auth';
+import { ProjectService } from '../services/project.service';
+import { plannerAgent } from '../services/planner/PlannerAgent';
+import { PlanTree } from '../types/plan';
 
 const router = Router();
-
-/**
- * Initialize required services
- */
 const projectService = new ProjectService();
-const memoryService = new MemoryService();
-const vectorService = new VectorContextService();
 
-/**
- * Execute a planning task
- */
-router.post('/projects/:projectId/plan', async (req, res, next) => {
-  try {
-    const { projectId } = req.params;
-    const { prompt, history = [], responseId } = req.body;
+interface PlanRequest extends AuthenticatedRequest {
+    params: {
+        projectId: string;
+    };
+    body: {
+        prompt: string;
+    };
+}
 
-    if (!prompt) {
-      return res.status(400).json({ error: 'Missing required field: prompt' });
+// Generate and store project plan
+router.post('/:projectId/plan', async (req: PlanRequest, res: Response, next: NextFunction) => {
+    try {
+        const { projectId } = req.params;
+        const { prompt } = req.body;
+
+        if (!prompt) {
+            res.status(400).json({
+                status: 'error',
+                message: 'Prompt is required'
+            });
+            return;
+        }
+
+        // Generate plan tree
+        const plan = await plannerAgent.createPlanTree(prompt);
+
+        // Save plan to project
+        await projectService.writeFile(
+            projectId,
+            'plan.json',
+            JSON.stringify(plan, null, 2)
+        );
+
+        // Commit plan
+        await projectService.commit(projectId, 'feat: add project plan structure');
+
+        res.status(201).json({
+            status: 'success',
+            data: plan
+        });
+
+    } catch (error) {
+        if (error instanceof Error) {
+            // Handle known validation errors from PlannerAgent
+            if (error.message.startsWith('Invalid')) {
+                res.status(400).json({
+                    status: 'error',
+                    message: error.message
+                });
+                return;
+            }
+        }
+        next(error);
     }
-
-    // Initialize planner for this project
-    const planner = new PlannerAgent(
-      projectId,
-      projectService,
-      memoryService,
-      vectorService
-    );
-
-    // Execute plan
-    const result = await planner.plan(prompt, history, responseId);
-
-    res.json({
-      projectId,
-      prompt,
-      ...result,
-      metadata: {
-        timestamp: new Date().toISOString(),
-        executionTimeMs: result.functions?.reduce(
-          (total, fn) => total + (fn.result?.duration || 0),
-          0
-        ) || 0,
-        functionCallCount: result.functions?.length || 0
-      }
-    });
-  } catch (err) {
-    next(err);
-  }
 });
 
-/**
- * List available functions for a project
- */
-router.get('/projects/:projectId/functions', async (_req, res) => {
-  const { BUILT_IN_FUNCTIONS } = await import('../services/llm/functions');
-  res.json({ functions: BUILT_IN_FUNCTIONS });
+// Get project plan
+router.get('/:projectId/plan', async (req: PlanRequest, res: Response, next: NextFunction) => {
+    try {
+        const { projectId } = req.params;
+
+        const planJson = await projectService.readFile(projectId, 'plan.json');
+        if (!planJson) {
+            res.status(404).json({
+                status: 'error',
+                message: 'No plan found for this project'
+            });
+            return;
+        }
+
+        try {
+            const plan = JSON.parse(planJson) as PlanTree;
+            res.json({
+                status: 'success',
+                data: plan
+            });
+        } catch (error) {
+            res.status(500).json({
+                status: 'error',
+                message: 'Failed to parse plan file'
+            });
+        }
+
+    } catch (error) {
+        next(error);
+    }
 });
 
-/**
- * Validate function arguments
- */
-router.post('/projects/:projectId/functions/validate', async (req, res) => {
-  const { name, args } = req.body;
-
-  if (!name || !args) {
-    return res.status(400).json({
-      error: 'Missing required fields',
-      required: ['name', 'args']
-    });
-  }
-
-  const { validateFunctionArgs } = await import('../services/llm/functions');
-  const errors = validateFunctionArgs(name, args);
-
-  if (errors.length > 0) {
-    return res.status(400).json({ errors });
-  }
-
-  res.json({ valid: true });
-});
-
-export default router;
+export const planRouter = router;
