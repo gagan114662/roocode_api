@@ -3,7 +3,6 @@ import { ParsedQs } from 'qs';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { ProjectService } from '../services/project.service';
 import { detectMode, IntentMode } from '../services/intentRouter';
-import { RooModeContext } from '../config/applyModes';
 
 const router = Router();
 const projectService = new ProjectService();
@@ -185,6 +184,144 @@ router.post('/:projectId/commit', async (req: ProjectRequest, res: Response, nex
     }
 });
 
+// Mode handler type definition
+type ModeHandler = (req: ProjectRequest, res: Response, next: NextFunction) => Promise<void>;
+
+// Mode handlers for different intents
+const modeHandlers: Record<IntentMode, ModeHandler> = {
+    // Scaffold mode handler
+    scaffold: async (req: ProjectRequest, res: Response, next: NextFunction) => {
+        try {
+            const { projectId } = req.params;
+            const { prompt } = req.body;
+            
+            // TODO: Implement scaffold mode logic
+            
+            res.json({
+                status: 'success',
+                data: {
+                    projectId,
+                    mode: 'scaffold',
+                    message: 'Scaffold mode executed',
+                    prompt
+                }
+            });
+        } catch (error) {
+            next(error);
+        }
+    },
+    
+    // Refactor mode handler
+    refactor: async (req: ProjectRequest, res: Response, next: NextFunction) => {
+        try {
+            const { projectId } = req.params;
+            const { prompt } = req.body;
+            
+            // TODO: Implement refactor mode logic
+            
+            res.json({
+                status: 'success',
+                data: {
+                    projectId,
+                    mode: 'refactor',
+                    message: 'Refactor mode executed',
+                    prompt
+                }
+            });
+        } catch (error) {
+            next(error);
+        }
+    },
+    
+    // TestGen mode handler
+    testgen: async (req: ProjectRequest, res: Response, next: NextFunction) => {
+        try {
+            const { projectId } = req.params;
+            const { prompt } = req.body;
+            
+            // TODO: Implement testgen mode logic
+            
+            res.json({
+                status: 'success',
+                data: {
+                    projectId,
+                    mode: 'testgen',
+                    message: 'TestGen mode executed',
+                    prompt
+                }
+            });
+        } catch (error) {
+            next(error);
+        }
+    },
+    
+    // CICD mode handler
+    cicd: async (req: ProjectRequest, res: Response, next: NextFunction) => {
+        try {
+            const { projectId } = req.params;
+            const { prompt } = req.body;
+            
+            // TODO: Implement cicd mode logic
+            
+            res.json({
+                status: 'success',
+                data: {
+                    projectId,
+                    mode: 'cicd',
+                    message: 'CICD mode executed',
+                    prompt
+                }
+            });
+        } catch (error) {
+            next(error);
+        }
+    },
+    
+    // DocGen mode handler
+    docgen: async (req: ProjectRequest, res: Response, next: NextFunction) => {
+        try {
+            const { projectId } = req.params;
+            const { prompt } = req.body;
+            
+            // TODO: Implement docgen mode logic
+            
+            res.json({
+                status: 'success',
+                data: {
+                    projectId,
+                    mode: 'docgen',
+                    message: 'DocGen mode executed',
+                    prompt
+                }
+            });
+        } catch (error) {
+            next(error);
+        }
+    },
+    
+    // Code mode handler (default)
+    code: async (req: ProjectRequest, res: Response, next: NextFunction) => {
+        try {
+            const { projectId } = req.params;
+            const { prompt } = req.body;
+            
+            // TODO: Implement code mode logic
+            
+            res.json({
+                status: 'success',
+                data: {
+                    projectId,
+                    mode: 'code',
+                    message: 'Code mode executed',
+                    prompt
+                }
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+};
+
 // Execute project action based on intent
 router.post('/:projectId/execute', async (req: ProjectRequest, res: Response, next: NextFunction) => {
     try {
@@ -201,20 +338,9 @@ router.post('/:projectId/execute', async (req: ProjectRequest, res: Response, ne
 
         // Detect intent from prompt
         const mode = detectMode(prompt);
-
-        // Get RooCode context from app.locals
-        const rooContext = (req.app.locals.rooContext as RooModeContext);
-        
-        if (!rooContext) {
-            res.status(500).json({
-                status: 'error',
-                message: 'RooCode modes not properly initialized'
-            });
-            return;
-        }
         
         // Get the appropriate handler for the detected mode
-        const handler = rooContext.rooModes[mode];
+        const handler = modeHandlers[mode];
         
         if (!handler) {
             res.status(400).json({
@@ -226,7 +352,6 @@ router.post('/:projectId/execute', async (req: ProjectRequest, res: Response, ne
         
         // Execute the handler
         return handler(req, res, next);
-
     } catch (error) {
         next(error);
     }
