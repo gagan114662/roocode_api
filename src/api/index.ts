@@ -4,6 +4,7 @@ import forecastRouter from '../routes/forecastCost';
 import modelRouter from '../routes/modelRoute';
 import memoryRouter from '../routes/memory';
 import searchRouter from '../routes/search';
+import planRouter from '../routes/plan';
 
 const app = express();
 app.use(express.json());
@@ -14,5 +15,6 @@ app.use('/api/v1', forecastRouter);
 app.use('/api/v1', modelRouter);
 app.use('/api/v1', memoryRouter);
 app.use('/api/v1', searchRouter);
+app.use('/api/v1', planRouter);
 
 export default app;
