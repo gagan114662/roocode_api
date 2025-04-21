@@ -13,7 +13,8 @@
     "test:property": "jest --testMatch='**/*.property.test.ts'",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "generate-types": "ts-node scripts/generate-types.mts"
   },
   "dependencies": {
     "ajv": "^8.12.0",
