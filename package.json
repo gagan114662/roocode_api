@@ -12,7 +12,7 @@
     "build:api": "tsc -p src/api/tsconfig.json",
     "lint": "eslint src --ext .ts,.tsx",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
-    "test:e2e": "playwright test"
+    "test:e2e": "JEST_JUNIT_OUTPUT_DIR=test-results/e2e jest --config jest.config.e2e.js"
   },
   "repository": {
     "type": "git",
