@@ -1,22 +1,51 @@
 import { test, expect } from '../helpers/setup';
-import path from 'path';
+import { createTestImage, cleanupTestImage } from '../helpers/image';
+import { Image } from '../fixtures/types';
+import fs from 'fs/promises';
 
 test.describe('Image Upload', () => {
-  test.beforeEach(async ({ page }) => {
-    // Common setup
+  let testImage: Image;
+
+  test.beforeEach(async () => {
+    testImage = await createTestImage();
   });
 
-  test('uploads valid images @fast', async ({ request, project }) => {
-    // Test implementation
+  test.afterEach(async () => {
+    await cleanupTestImage(testImage);
   });
 
-  test.describe('validation', () => {
-    test('rejects oversized files', async ({ request, project }) => {
-      // Test implementation
-    });
+  test('uploads valid image @fast', async ({ request, project }) => {
+    const form = new FormData();
+    const fileData = await fs.readFile(testImage.path);
+    form.append('images', new Blob([fileData]), testImage.name);
 
-    test('validates MIME types @fast', async ({ request, project }) => {
-      // Test implementation
-    });
+    const response = await request.post(
+      `/api/v1/projects/${project.id}/upload-image`,
+      {
+        data: form
+      }
+    );
+
+    expect(response.ok()).toBeTruthy();
+    const data = await response.json();
+    expect(data.uploads).toHaveLength(1);
+    expect(data.uploads[0].originalName).toBe(testImage.name);
+  });
+
+  test('rejects oversized files', async ({ request, project }) => {
+    const largeImage = await createTestImage(6 * 1024 * 1024); // 6MB
+    const form = new FormData();
+    const fileData = await fs.readFile(largeImage.path);
+    form.append('images', new Blob([fileData]), largeImage.name);
+
+    const response = await request.post(
+      `/api/v1/projects/${project.id}/upload-image`,
+      {
+        data: form
+      }
+    );
+
+    expect(response.status()).toBe(413);
+    await cleanupTestImage(largeImage);
   });
 });

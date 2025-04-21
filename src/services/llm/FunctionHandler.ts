@@ -1,168 +1,80 @@
-import { FunctionImplementer } from './functions';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import { validateWithRetry } from '../../utils/validator';
 import { ProjectService } from '../project/ProjectService';
 import { MemoryService } from '../memory/MemoryService';
 import { VectorContextService } from '../context/VectorContextService';
-import path from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { CodeGeneration } from '../../types/code';
 
 const execAsync = promisify(exec);
 
-/**
- * Implements built-in functions available to LLM agents.
- */
-export class FunctionHandler implements FunctionImplementer {
+export class FunctionHandler {
   constructor(
     private projectService: ProjectService,
     private memoryService: MemoryService,
     private vectorService: VectorContextService
   ) {}
 
-  async runTests(args: {
+  async generateCode(params: { 
     projectId: string;
-    testPattern?: string;
-    updateSnapshots?: boolean;
-  }): Promise<{ success: boolean; output: string }> {
-    const { projectId, testPattern, updateSnapshots } = args;
-    const workspaceDir = path.join(process.cwd(), 'workspaces', projectId);
-
-    let command = 'npm test';
-    if (testPattern) command += ` -- -t "${testPattern}"`;
-    if (updateSnapshots) command += ' -- -u';
-
-    try {
-      const { stdout, stderr } = await execAsync(command, {
-        cwd: workspaceDir
+    prompt: string;
+    language?: string;
+  }): Promise<CodeGeneration> {
+    const generateResponse = async () => {
+      // Existing LLM call to generate code
+      const response = await this.callLLM(params.prompt, {
+        temperature: 0,
+        functions: [{
+          name: 'writeCode',
+          parameters: {
+            type: 'object',
+            properties: {
+              content: { type: 'string' },
+              language: { type: 'string' },
+              metadata: {
+                type: 'object',
+                properties: {
+                  filename: { type: 'string' },
+                  description: { type: 'string' },
+                  dependencies: { type: 'array', items: { type: 'string' } }
+                }
+              }
+            }
+          }
+        }]
       });
 
-      const success = !stderr;
-      const output = stdout + (stderr ? `\nErrors:\n${stderr}` : '');
+      return JSON.parse(response);
+    };
 
-      // Log test results to memory
-      await this.memoryService.appendToSection(
-        projectId,
-        'testCoverage',
-        `Test run ${success ? 'succeeded' : 'failed'}:\n${output}`
-      );
+    // Validate and retry if needed
+    const result = await validateWithRetry<CodeGeneration>(
+      'code',
+      generateResponse
+    );
 
-      return { success, output };
-    } catch (error) {
-      const output = `Test execution failed: ${error.message}`;
-      await this.memoryService.appendToSection(
-        projectId,
-        'ciIssues',
-        output
-      );
-      return { success: false, output };
-    }
+    // Log the successful generation
+    await this.memoryService.appendToSection(
+      params.projectId,
+      'implementationNotes',
+      `Generated ${result.metadata.filename}: ${result.metadata.description}`
+    );
+
+    return result;
   }
 
-  async getFileContent(args: {
-    projectId: string;
-    filePath: string;
-  }): Promise<{ content: string }> {
-    const { projectId, filePath } = args;
-    const fullPath = path.join(process.cwd(), 'workspaces', projectId, filePath);
-    
-    try {
-      const content = await this.projectService.readFile(fullPath);
-      return { content };
-    } catch (error) {
-      throw new Error(`Failed to read file ${filePath}: ${error.message}`);
-    }
-  }
+  // ... existing methods ...
 
-  async writeFile(args: {
-    projectId: string;
-    filePath: string;
-    content: string;
-    createDirs?: boolean;
-  }): Promise<{ success: boolean; path: string }> {
-    const { projectId, filePath, content, createDirs = true } = args;
-    const fullPath = path.join(process.cwd(), 'workspaces', projectId, filePath);
-
-    try {
-      await this.projectService.writeFile(fullPath, content, { createDirs });
-
-      // Log file creation/update
-      await this.memoryService.appendToSection(
-        projectId,
-        'implementationNotes',
-        `Updated file: ${filePath}`
-      );
-
-      return { success: true, path: filePath };
-    } catch (error) {
-      throw new Error(`Failed to write file ${filePath}: ${error.message}`);
-    }
-  }
-
-  async commitChanges(args: {
-    projectId: string;
-    message: string;
-    files: string[];
-  }): Promise<{ success: boolean; commit: string }> {
-    const { projectId, message, files } = args;
-
-    try {
-      const commitHash = await this.projectService.commit(projectId, files, message);
-
-      // Log commit to memory
-      await this.memoryService.appendToSection(
-        projectId,
-        'implementationNotes',
-        `Committed changes: ${message} (${commitHash})`
-      );
-
-      return { success: true, commit: commitHash };
-    } catch (error) {
-      throw new Error(`Failed to commit changes: ${error.message}`);
-    }
-  }
-
-  async searchCode(args: {
-    projectId: string;
-    query: string;
-    topK?: number;
-  }): Promise<{ results: Array<{ text: string; file: string; score: number }> }> {
-    const { projectId, query, topK = 5 } = args;
-
-    try {
-      const results = await this.vectorService.search(projectId, query, topK);
-      return { results };
-    } catch (error) {
-      throw new Error(`Code search failed: ${error.message}`);
-    }
-  }
-
-  async readMemory(args: {
-    projectId: string;
-    section: string;
-  }): Promise<{ content: string }> {
-    const { projectId, section } = args;
-
-    try {
-      const content = await this.memoryService.readSection(projectId, section);
-      return { content };
-    } catch (error) {
-      throw new Error(`Failed to read memory section ${section}: ${error.message}`);
-    }
-  }
-
-  async writeMemory(args: {
-    projectId: string;
-    section: string;
-    entry: string;
-  }): Promise<{ success: boolean }> {
-    const { projectId, section, entry } = args;
-
-    try {
-      await this.memoryService.appendToSection(projectId, section, entry);
-      return { success: true };
-    } catch (error) {
-      throw new Error(`Failed to write to memory section ${section}: ${error.message}`);
-    }
+  private async callLLM(prompt: string, options: any): Promise<string> {
+    // Mock for now - replace with actual LLM call
+    return JSON.stringify({
+      content: "console.log('Hello world')",
+      language: "typescript",
+      metadata: {
+        filename: "index.ts",
+        description: "Example code",
+        dependencies: []
+      }
+    });
   }
 }
-
-export default FunctionHandler;

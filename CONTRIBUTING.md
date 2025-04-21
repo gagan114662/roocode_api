@@ -171,3 +171,24 @@ Anyone can contribute code to Roo Code, but we ask that you follow these guideli
 ## Contribution Agreement
 
 By submitting a pull request, you agree that your contributions will be licensed under the same license as the project ([Apache 2.0](LICENSE)).
+
+## Output Validation
+
+When working with LLM responses:
+
+1. Always use schema validation:
+   ```typescript
+   const result = await validateLLMResponse(response, 'schemaName');
+   ```
+
+2. Add schemas for new output types:
+   - Place in `src/schemas/`
+   - Include `$id` and `description`
+   - Add corresponding TypeScript types
+
+3. Test validation:
+   - Add property-based tests
+   - Test error cases
+   - Verify telemetry
+
+4. Monitor validation stats in production via telemetry.

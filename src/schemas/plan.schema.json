@@ -1,0 +1,60 @@
+{
+  "$id": "https://roocode.ai/schemas/plan.schema.json",
+  "type": "object",
+  "required": ["content", "stages", "functions"],
+  "properties": {
+    "content": { "type": "string" },
+    "stages": {
+      "type": "object",
+      "required": ["imageAnalysis", "planning"],
+      "properties": {
+        "imageAnalysis": {
+          "type": "object",
+          "properties": {
+            "description": { "type": "string" },
+            "elements": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["type", "content"],
+                "properties": {
+                  "type": { "type": "string" },
+                  "content": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "planning": {
+          "type": "object",
+          "required": ["tasks"],
+          "properties": {
+            "tasks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["id", "description", "type"],
+                "properties": {
+                  "id": { "type": "string" },
+                  "description": { "type": "string" },
+                  "type": { "type": "string", "enum": ["file", "test", "fix"] }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "functions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "args"],
+        "properties": {
+          "name": { "type": "string" },
+          "args": { "type": "object" }
+        }
+      }
+    }
+  }
+}
